@@ -1,0 +1,20 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 3.15kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/node:24-trixie-slim
+#2 ERROR: failed to authorize: failed to fetch anonymous token: Get "https://auth.docker.io/token?scope=repository%3Alibrary%2Fnode%3Apull&service=registry.docker.io": dial tcp 108.160.166.9:443: connectex: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond.
+------
+ > [internal] load metadata for docker.io/library/node:24-trixie-slim:
+------
+Dockerfile:15
+--------------------
+  13 |     # https://backstage.io/docs/deployment/docker#multi-stage-build
+  14 |     
+  15 | >>> FROM node:24-trixie-slim
+  16 |     
+  17 |     # Set Python interpreter for `node-gyp` to use
+--------------------
+ERROR: failed to build: failed to solve: failed to fetch anonymous token: Get "https://auth.docker.io/token?scope=repository%3Alibrary%2Fnode%3Apull&service=registry.docker.io": dial tcp 108.160.166.9:443: connectex: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond.

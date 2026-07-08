@@ -1,0 +1,148 @@
+backstage:
+  replicas: 1
+
+  image:
+    registry: ""
+    repository: platform-poc-backstage
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+
+  appConfig:
+    app:
+      title: Platform POC
+      baseUrl: http://localhost:7007
+    organization:
+      name: Platform POC
+    backend:
+      baseUrl: http://localhost:7007
+      listen:
+        port: 7007
+        host: 0.0.0.0
+      cors:
+        origin: http://localhost:7007
+        methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+        credentials: true
+      database:
+        client: pg
+        connection:
+          host: backstage-postgresql
+          port: 5432
+          user: bn_backstage
+          password: backstage
+          database: backstage
+    auth:
+      environment: development
+      providers:
+        guest:
+          userEntityRef: user:default/guest
+          dangerouslyAllowOutsideDevelopment: true
+    catalog:
+      rules:
+        - allow:
+            - Component
+            - API
+            - Resource
+            - System
+            - Domain
+            - Location
+            - User
+            - Group
+      locations:
+        - type: file
+          target: /app/catalog/helloworld-catalog-info.yaml
+        - type: file
+          target: /app/catalog/fastapi-demo-catalog-info.yaml
+        - type: file
+          target: /app/catalog/guest-user.yaml
+        - type: file
+          target: /app/catalog/platform-team.yaml
+    kubernetes:
+      serviceLocatorMethod:
+        type: multiTenant
+      clusterLocatorMethods:
+        - type: config
+          clusters:
+            - name: platform-poc
+              title: Platform POC kind cluster
+              url: https://kubernetes.default.svc
+              authProvider: serviceAccount
+              skipTLSVerify: true
+              skipMetricsLookup: true
+
+  extraVolumes:
+    - name: backstage-catalog
+      configMap:
+        name: backstage-catalog
+
+  extraVolumeMounts:
+    - name: backstage-catalog
+      mountPath: /app/catalog
+      readOnly: true
+
+serviceAccount:
+  create: true
+  name: backstage
+  automountServiceAccountToken: true
+
+postgresql:
+  enabled: true
+  auth:
+    username: bn_backstage
+    password: backstage
+    database: backstage
+    secretKeys:
+      userPasswordKey: password
+
+extraDeploy:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: backstage-catalog
+      namespace: backstage
+    data:
+      helloworld-catalog-info.yaml: |
+        apiVersion: backstage.io/v1alpha1
+        kind: Component
+        metadata:
+          name: helloworld
+          description: Crossplane-managed HelloWorld service deployed through provider-helm
+          annotations:
+            backstage.io/kubernetes-id: helloworld
+            backstage.io/kubernetes-namespace: demo
+        spec:
+          type: service
+          lifecycle: experimental
+          owner: platform-team
+      fastapi-demo-catalog-info.yaml: |
+        apiVersion: backstage.io/v1alpha1
+        kind: Component
+        metadata:
+          name: fastapi-demo
+          description: FastAPI demo service for validating the Tekton, GHCR, Argo CD, Crossplane CI/CD flow
+          annotations:
+            backstage.io/kubernetes-id: fastapi-demo
+            backstage.io/kubernetes-namespace: demo
+        spec:
+          type: service
+          lifecycle: experimental
+          owner: platform-team
+      guest-user.yaml: |
+        apiVersion: backstage.io/v1alpha1
+        kind: User
+        metadata:
+          name: guest
+        spec:
+          profile:
+            displayName: Guest User
+          memberOf:
+            - platform-team
+      platform-team.yaml: |
+        apiVersion: backstage.io/v1alpha1
+        kind: Group
+        metadata:
+          name: platform-team
+        spec:
+          type: team
+          profile:
+            displayName: Platform Team
+          children: []

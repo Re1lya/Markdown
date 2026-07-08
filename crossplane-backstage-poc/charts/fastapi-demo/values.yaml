@@ -1,0 +1,15 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/re1lya/fastapi-demo
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+containerPort: 8000
+
+backstage:
+  kubernetesId: fastapi-demo

@@ -1,0 +1,8 @@
+name: helloworld
+namespace: default
+
+appService:
+  namespace: demo
+  chartName: helloworld
+  chartVersion: 0.1.0
+  message: hello from Argo CD synced AppService

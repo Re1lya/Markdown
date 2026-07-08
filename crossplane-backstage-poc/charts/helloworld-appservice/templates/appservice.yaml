@@ -1,0 +1,13 @@
+apiVersion: platform.example.com/v1alpha1
+kind: AppService
+metadata:
+  name: {{ .Values.name | quote }}
+  namespace: {{ .Values.namespace | quote }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.name | quote }}
+    app.kubernetes.io/managed-by: argocd
+spec:
+  namespace: {{ .Values.appService.namespace | quote }}
+  chartName: {{ .Values.appService.chartName | quote }}
+  chartVersion: {{ .Values.appService.chartVersion | quote }}
+  message: {{ .Values.appService.message | quote }}

@@ -1,0 +1,47 @@
+apiVersion: v1
+entries:
+  fastapi-demo:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-07-08T14:59:49.8835955+08:00"
+    description: FastAPI demo service for the platform CI/CD POC.
+    digest: a47982052b01191e9944a00dbd6e9fdac69327f4213a2be40b5a7e60f8488f4b
+    name: fastapi-demo
+    type: application
+    urls:
+    - http://helm-repo.platform-system.svc.cluster.local/fastapi-demo-0.1.0.tgz
+    version: 0.1.0
+  fastapi-demo-appservice:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-07-08T14:59:49.8841021+08:00"
+    description: Renders a Crossplane AppService claim for the FastAPI demo.
+    digest: 2e02ad39892b90b3fd893f8bf203a42fb8cebf94cd87e6e43ec15be4038a9b63
+    name: fastapi-demo-appservice
+    type: application
+    urls:
+    - http://helm-repo.platform-system.svc.cluster.local/fastapi-demo-appservice-0.1.0.tgz
+    version: 0.1.0
+  helloworld:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2026-07-08T14:59:49.8846481+08:00"
+    description: Minimal HelloWorld service for the Crossplane and Backstage POC
+    digest: 74b37419179ec07f1998098fd5c18db6ae5692a133a3dbce116a923d72bc3e33
+    name: helloworld
+    type: application
+    urls:
+    - http://helm-repo.platform-system.svc.cluster.local/helloworld-0.1.0.tgz
+    version: 0.1.0
+  helloworld-appservice:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-07-08T14:59:49.8847876+08:00"
+    description: Renders a Crossplane AppService claim for the HelloWorld POC.
+    digest: a70691ad4e4b17205aa05e3b4e5048fdf012e1cce21c4bd7d9cf689747c8ea0b
+    name: helloworld-appservice
+    type: application
+    urls:
+    - http://helm-repo.platform-system.svc.cluster.local/helloworld-appservice-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-07-08T14:59:49.882967+08:00"

@@ -1,0 +1,31 @@
+apiVersion: helm.m.crossplane.io/v1beta1
+kind: Release
+metadata:
+  name: argocd
+  namespace: default
+  annotations:
+    crossplane.io/external-name: argocd
+spec:
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: default
+  forProvider:
+    namespace: argocd
+    chart:
+      name: argo-cd
+      repository: https://argoproj.github.io/argo-helm
+      version: 10.1.2
+    values:
+      crds:
+        install: true
+        keep: true
+      dex:
+        enabled: false
+      server:
+        extraArgs:
+          - --insecure
+      configs:
+        params:
+          server.insecure: true
+    wait: true
+    waitTimeout: 8m

@@ -1,0 +1,69 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: appservice-helm-release
+spec:
+  compositeTypeRef:
+    apiVersion: platform.example.com/v1alpha1
+    kind: AppService
+  mode: Pipeline
+  pipeline:
+    - step: patch-and-transform
+      functionRef:
+        name: function-patch-and-transform
+      input:
+        apiVersion: pt.fn.crossplane.io/v1beta1
+        kind: Resources
+        resources:
+          - name: helm-release
+            base:
+              apiVersion: helm.m.crossplane.io/v1beta1
+              kind: Release
+              metadata:
+                annotations:
+                  crossplane.io/external-name: helloworld
+              spec:
+                providerConfigRef:
+                  kind: ClusterProviderConfig
+                  name: default
+                forProvider:
+                  namespace: demo
+                  chart:
+                    name: helloworld
+                    repository: http://helm-repo.platform-system.svc.cluster.local
+                    version: 0.1.0
+                  values:
+                    backstage:
+                      kubernetesId: helloworld
+                    message: hello from Crossplane-managed Helm release
+                  wait: true
+                  waitTimeout: 3m
+            patches:
+              - type: FromCompositeFieldPath
+                fromFieldPath: metadata.name
+                toFieldPath: metadata.annotations[crossplane.io/external-name]
+              - type: FromCompositeFieldPath
+                fromFieldPath: metadata.name
+                toFieldPath: spec.forProvider.values.backstage.kubernetesId
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.namespace
+                toFieldPath: spec.forProvider.namespace
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.chartName
+                toFieldPath: spec.forProvider.chart.name
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.chartVersion
+                toFieldPath: spec.forProvider.chart.version
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.message
+                toFieldPath: spec.forProvider.values.message
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.image.repository
+                toFieldPath: spec.forProvider.values.image.repository
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.image.tag
+                toFieldPath: spec.forProvider.values.image.tag
+                policy:
+                  fromFieldPath: Optional

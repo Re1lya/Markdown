@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fastapi-demo-appservice
+description: Renders a Crossplane AppService claim for the FastAPI demo.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

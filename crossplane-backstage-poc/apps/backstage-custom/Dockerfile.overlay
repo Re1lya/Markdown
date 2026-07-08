@@ -1,0 +1,8 @@
+FROM ghcr.io/backstage/backstage:latest
+
+USER node
+WORKDIR /app
+
+COPY --chown=node:node packages/backend/dist/bundle.tar.gz /tmp/backstage-bundle.tar.gz
+RUN tar xzf /tmp/backstage-bundle.tar.gz && rm /tmp/backstage-bundle.tar.gz
+

@@ -1,0 +1,10 @@
+name: fastapi-demo
+namespace: default
+
+appService:
+  namespace: demo
+  chartName: fastapi-demo
+  chartVersion: 0.1.0
+  image:
+    repository: ghcr.io/re1lya/fastapi-demo
+    tag: latest

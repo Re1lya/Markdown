@@ -1,0 +1,12 @@
+apiVersion: platform.example.com/v1alpha1
+kind: AppService
+metadata:
+  name: fastapi-demo
+  namespace: default
+spec:
+  namespace: demo
+  chartName: fastapi-demo
+  chartVersion: 0.1.0
+  image:
+    repository: ghcr.io/re1lya/fastapi-demo
+    tag: latest

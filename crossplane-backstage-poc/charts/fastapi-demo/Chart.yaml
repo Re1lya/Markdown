@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fastapi-demo
+description: FastAPI demo service for the platform CI/CD POC.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

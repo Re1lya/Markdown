@@ -1,0 +1,45 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.overlay
+#1 transferring dockerfile: 277B 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for ghcr.io/backstage/backstage:latest
+#2 DONE 0.1s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 153B done
+#3 DONE 0.0s
+
+#4 [1/4] FROM ghcr.io/backstage/backstage:latest@sha256:0ff3eb2d809931fbddc913ea1b6c1d425b41f4f6b00c94e61faa0e5078e8339a
+#4 resolve ghcr.io/backstage/backstage:latest@sha256:0ff3eb2d809931fbddc913ea1b6c1d425b41f4f6b00c94e61faa0e5078e8339a 0.0s done
+#4 DONE 0.6s
+
+#5 [internal] load build context
+#5 ...
+
+#6 [2/4] WORKDIR /app
+#6 DONE 0.1s
+
+#5 [internal] load build context
+#5 transferring context: 14.97MB 0.9s done
+#5 DONE 1.0s
+
+#7 [3/4] COPY --chown=node:node packages/backend/dist/bundle.tar.gz /tmp/backstage-bundle.tar.gz
+#7 DONE 0.1s
+
+#8 [4/4] RUN tar xzf /tmp/backstage-bundle.tar.gz && rm /tmp/backstage-bundle.tar.gz
+#8 DONE 0.6s
+
+#9 exporting to image
+#9 exporting layers
+#9 exporting layers 0.9s done
+#9 exporting manifest sha256:8e8d3bb33b1ef0a8facb3b56033801c84f8a80c4484e26f0d9fe471c5853ab7d 0.0s done
+#9 exporting config sha256:45ff2d644597f39657c13f8a30025a55ce1be3a14705175cd63ea0cd65d37c0f 0.0s done
+#9 exporting attestation manifest sha256:1c54d93d4f1462185cf75593b4872fa9a9df2adcfa740b4f6683c7749f257387 0.0s done
+#9 exporting manifest list sha256:02dae071a23df1c031415b1d9bcfd402bc027b024ef5a2b3bf4ab642616a48d0 0.0s done
+#9 naming to docker.io/library/platform-poc-backstage:0.1.0
+#9 naming to docker.io/library/platform-poc-backstage:0.1.0 done
+#9 unpacking to docker.io/library/platform-poc-backstage:0.1.0
+#9 unpacking to docker.io/library/platform-poc-backstage:0.1.0 0.2s done
+#9 DONE 1.3s
