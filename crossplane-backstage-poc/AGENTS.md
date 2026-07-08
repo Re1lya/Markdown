@@ -1111,6 +1111,41 @@ kubectl create secret docker-registry ghcr-auth `
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
+2026-07-08 clone failure:
+
+- After `ci/ghcr-auth` was created, GitHub webhook successfully triggered PipelineRuns:
+  - `fastapi-demo-ci-zkm6x`
+  - `fastapi-demo-ci-bjbzn`
+- Both failed at the `clone` task.
+- Root cause from pod logs:
+
+```text
+fatal: could not read Username for 'https://github.com': No such device or address
+```
+
+- Cause:
+  - `https://github.com/Re1lya/Markdown.git` requires authentication from inside the Tekton Pod.
+  - The GHCR docker-registry secret only authenticates image push/pull to `ghcr.io`.
+  - It does not authenticate `git clone`.
+- Fix applied:
+  - Updated `clone-repo` Task in `manifests/tekton/fastapi-demo-ci.yaml`.
+  - It now reads `GIT_USERNAME` and `GIT_TOKEN` from Secret `ci/github-git-auth`.
+  - It uses `GIT_ASKPASS` instead of embedding credentials in the URL.
+- User must create:
+
+```powershell
+$GITHUB_USER="Re1lya"
+$GITHUB_TOKEN="<same PAT is ok if it has repo scope>"
+
+kubectl create secret generic github-git-auth `
+  -n ci `
+  --from-literal=username=$GITHUB_USER `
+  --from-literal=token=$GITHUB_TOKEN `
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+- Then retrigger the GitHub webhook with another push.
+
 After `ghcr-auth` exists, the next validation is:
 
 1. Ensure this POC folder is pushed to GitHub, because Tekton clones from GitHub.

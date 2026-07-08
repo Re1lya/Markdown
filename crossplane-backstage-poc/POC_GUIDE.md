@@ -457,6 +457,26 @@ kubectl create secret docker-registry ghcr-auth `
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
+Also create a Git clone secret. This can reuse the same GitHub classic PAT if it has `repo` scope:
+
+```powershell
+$GITHUB_USER="Re1lya"
+$GITHUB_TOKEN="<your GitHub classic PAT>"
+
+kubectl create secret generic github-git-auth `
+  -n ci `
+  --from-literal=username=$GITHUB_USER `
+  --from-literal=token=$GITHUB_TOKEN `
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Why two secrets:
+
+```text
+ghcr-auth       -> Docker/BuildKit login for ghcr.io image push
+github-git-auth -> git clone authentication for https://github.com/Re1lya/Markdown.git
+```
+
 Required token scopes for this POC:
 
 ```text

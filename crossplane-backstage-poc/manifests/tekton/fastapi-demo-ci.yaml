@@ -48,9 +48,30 @@ spec:
     - name: clone
       image: alpine/git:2.47.2
       workingDir: $(workspaces.source.path)
+      env:
+        - name: GIT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: github-git-auth
+              key: username
+        - name: GIT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: github-git-auth
+              key: token
       script: |
         #!/bin/sh
         set -eu
+        cat > /tmp/git-askpass.sh <<'EOF'
+        #!/bin/sh
+        case "$1" in
+          *Username*) echo "$GIT_USERNAME" ;;
+          *) echo "$GIT_TOKEN" ;;
+        esac
+        EOF
+        chmod +x /tmp/git-askpass.sh
+        export GIT_ASKPASS=/tmp/git-askpass.sh
+        export GIT_TERMINAL_PROMPT=0
         rm -rf repo
         git clone "$(params.repo_url)" repo
         cd repo
