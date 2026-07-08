@@ -898,6 +898,34 @@ Events: Just the push event
 Active: checked
 ```
 
+Important reminder for future sessions:
+
+- The current setup uses a cloudflared quick tunnel.
+- A quick tunnel URL is temporary and is only valid while the PowerShell/cloudflared process is running.
+- If the terminal window is closed, the computer restarts, or cloudflared exits, the old `https://*.trycloudflare.com` URL should be treated as invalid.
+- When resuming this experiment after a long break, remind the user to run:
+
+```powershell
+cd D:\Markdown\crossplane-backstage-poc
+powershell -ExecutionPolicy Bypass -File .\scripts\start-github-webhook-tunnel.ps1
+```
+
+- Then copy the newly printed `https://*.trycloudflare.com` URL into the GitHub webhook Payload URL.
+- The GitHub webhook secret remains:
+
+```text
+platform-poc-webhook-secret
+```
+
+- The target repository webhook page for this POC is:
+
+```text
+https://github.com/Re1lya/Markdown/settings/hooks
+```
+
+- Do not assume an old trycloudflare URL still works.
+- A fixed URL would require a Cloudflare named tunnel and DNS setup; that is outside the current quick local POC.
+
 Next CI/CD milestone:
 
 - Replace the smoke Pipeline with a real build Pipeline:

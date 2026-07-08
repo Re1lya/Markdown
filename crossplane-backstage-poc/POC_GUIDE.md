@@ -325,6 +325,19 @@ Or run the helper script:
 powershell -ExecutionPolicy Bypass -File ./scripts/start-github-webhook-tunnel.ps1
 ```
 
+Quick tunnel reminder:
+
+```text
+The https://*.trycloudflare.com URL is temporary.
+If the PowerShell window is closed or the machine restarts, run the script again and update the GitHub webhook Payload URL.
+```
+
+GitHub webhook page:
+
+```text
+https://github.com/Re1lya/Markdown/settings/hooks
+```
+
 If `cloudflared` is not installed:
 
 ```powershell
