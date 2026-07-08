@@ -14,3 +14,4 @@ def root() -> dict[str, str]:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+#这是一个注释用于对CI做测试。
