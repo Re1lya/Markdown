@@ -1994,3 +1994,50 @@ build-push-fastapi-demo
 update-fastapi-demo-gitops
 github-push-smoke
 ```
+
+Verification:
+
+- Applied `gitops/tekton/shared-tasks.yaml` to the live cluster.
+- Pushed commit:
+
+```text
+1628ffb fix: add shared Tekton tasks to GitOps
+```
+
+- GitHub webhook triggered a new PipelineRun:
+
+```text
+fastapi-demo-2-ci-tkjmb
+```
+
+- The PipelineRun completed successfully:
+
+```text
+SUCCEEDED=True
+REASON=Succeeded
+Tasks Completed: 4 (Failed: 0, Cancelled 0), Skipped: 0
+```
+
+- TaskRuns all succeeded:
+
+```text
+fastapi-demo-2-ci-tkjmb-clone: Succeeded
+fastapi-demo-2-ci-tkjmb-test: Succeeded
+fastapi-demo-2-ci-tkjmb-build-push: Succeeded
+fastapi-demo-2-ci-tkjmb-update-gitops: Succeeded
+```
+
+- Tekton then pushed the expected GitOps image tag update:
+
+```text
+0d5be5b chore: update fastapi-demo image tag [skip ci]
+```
+
+- Final platform checks after the fix:
+
+```text
+Argo CD Applications: Synced / Healthy
+AppServices: SYNCED=True, READY=True
+demo Pods: Running
+Gateway health check: HTTP 200 {"status":"ok"}
+```
