@@ -100,7 +100,7 @@ spec:
       action: fetch:template:file
       input:
         url: ./skeleton/Chart.yaml.njk
-        targetPath: gitops/appservices/${{ parameters.serviceName }}/Chart.yaml
+        targetPath: crossplane-backstage-poc/gitops/appservices/${{ parameters.serviceName }}/Chart.yaml
         values:
           serviceName: ${{ parameters.serviceName }}
     - id: chart-values
@@ -108,7 +108,7 @@ spec:
       action: fetch:template:file
       input:
         url: ./skeleton/values.yaml.njk
-        targetPath: gitops/appservices/${{ parameters.serviceName }}/values.yaml
+        targetPath: crossplane-backstage-poc/gitops/appservices/${{ parameters.serviceName }}/values.yaml
         values:
           serviceName: ${{ parameters.serviceName }}
           imageRepository: ${{ parameters.imageRepository }}
@@ -121,14 +121,14 @@ spec:
       action: fetch:template:file
       input:
         url: ./skeleton/appservice.yaml.njk
-        targetPath: gitops/appservices/${{ parameters.serviceName }}/templates/appservice.yaml
+        targetPath: crossplane-backstage-poc/gitops/appservices/${{ parameters.serviceName }}/templates/appservice.yaml
         values: {}
     - id: argocd-application
       name: Generate Argo CD Application
       action: fetch:template:file
       input:
         url: ./skeleton/argocd-application.yaml.njk
-        targetPath: gitops/argocd/${{ parameters.serviceName }}-appservice.yaml
+        targetPath: crossplane-backstage-poc/gitops/argocd/${{ parameters.serviceName }}-appservice.yaml
         values:
           serviceName: ${{ parameters.serviceName }}
           gitopsHttpUrl: ${{ parameters.gitopsHttpUrl }}
@@ -139,7 +139,7 @@ spec:
       action: fetch:template:file
       input:
         url: ./skeleton/catalog-info.yaml.njk
-        targetPath: catalog/services/${{ parameters.serviceName }}/catalog-info.yaml
+        targetPath: crossplane-backstage-poc/catalog/services/${{ parameters.serviceName }}/catalog-info.yaml
         values:
           serviceName: ${{ parameters.serviceName }}
           owner: ${{ parameters.owner }}
@@ -150,7 +150,7 @@ spec:
       action: fetch:template:file
       input:
         url: ./skeleton/tekton-ci.yaml.njk
-        targetPath: gitops/tekton/${{ parameters.serviceName }}-ci.yaml
+        targetPath: crossplane-backstage-poc/gitops/tekton/${{ parameters.serviceName }}-ci.yaml
         values:
           serviceName: ${{ parameters.serviceName }}
           sourceRepoCloneUrl: ${{ parameters.sourceRepoCloneUrl }}
