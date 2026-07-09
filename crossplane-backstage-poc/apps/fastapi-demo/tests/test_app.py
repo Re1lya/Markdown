@@ -9,10 +9,10 @@ def test_root_returns_service_message():
     response = client.get("/")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "service": "fastapi-demo",
-        "message": "hello from fastapi demo",
-    }
+    assert "text/html" in response.headers["content-type"]
+    assert "Platform POC Service is Running" in response.text
+    assert "Deployed by Tekton, synced by Argo CD, managed with Crossplane" in response.text
+    assert "FastAPI Demo" in response.text
 
 
 def test_health_returns_ok():
