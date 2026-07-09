@@ -58,6 +58,16 @@ spec:
                 fromFieldPath: spec.message
                 toFieldPath: spec.forProvider.values.message
               - type: FromCompositeFieldPath
+                fromFieldPath: spec.port
+                toFieldPath: spec.forProvider.values.containerPort
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.replicas
+                toFieldPath: spec.forProvider.values.replicaCount
+                policy:
+                  fromFieldPath: Optional
+              - type: FromCompositeFieldPath
                 fromFieldPath: spec.image.repository
                 toFieldPath: spec.forProvider.values.image.repository
                 policy:

@@ -5,6 +5,8 @@ appService:
   namespace: demo
   chartName: fastapi-demo
   chartVersion: 0.1.0
+  port: 8000
+  replicas: 1
   image:
     repository: ghcr.io/re1lya/fastapi-demo
     tag: 1ddefb7862e41ac2646e08c9bd8190248abfd373

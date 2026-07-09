@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ${{ values.serviceName }}-appservice
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: ${{ values.gitopsHttpUrl }}
+    path: crossplane-backstage-poc/gitops/appservices/${{ values.serviceName }}
+    targetRevision: ${{ values.gitopsTargetBranch }}
+    helm:
+      releaseName: ${{ values.serviceName }}-appservice
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${{ values.crossplaneNamespace }}
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

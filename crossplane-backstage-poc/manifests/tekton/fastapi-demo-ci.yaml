@@ -128,11 +128,86 @@ spec:
       script: |
         #!/bin/sh
         set -eu
+        mkdir -p /tmp/docker-config
+        cp "$(workspaces.dockerconfig.path)/.dockerconfigjson" /tmp/docker-config/config.json
+        export DOCKER_CONFIG=/tmp/docker-config
         buildctl-daemonless.sh build \
           --frontend dockerfile.v0 \
           --local context="$(workspaces.source.path)/repo/$(params.context_dir)" \
           --local dockerfile="$(workspaces.source.path)/repo/$(params.context_dir)" \
           --output "type=image,name=$(params.image),push=true"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: update-fastapi-demo-gitops
+  namespace: ci
+spec:
+  params:
+    - name: commit_sha
+      type: string
+    - name: gitops_values_file
+      type: string
+      default: crossplane-backstage-poc/charts/fastapi-demo-appservice/values.yaml
+    - name: gitops_repo_url
+      type: string
+      default: ""
+    - name: gitops_branch
+      type: string
+      default: main
+  workspaces:
+    - name: source
+  steps:
+    - name: update-values
+      image: alpine/git:2.47.2
+      workingDir: $(workspaces.source.path)/repo
+      env:
+        - name: GIT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: github-git-auth
+              key: username
+        - name: GIT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: github-git-auth
+              key: token
+      script: |
+        #!/bin/sh
+        set -eu
+        cat > /tmp/git-askpass.sh <<'EOF'
+        #!/bin/sh
+        case "$1" in
+          *Username*) echo "$GIT_USERNAME" ;;
+          *) echo "$GIT_TOKEN" ;;
+        esac
+        EOF
+        chmod +x /tmp/git-askpass.sh
+        export GIT_ASKPASS=/tmp/git-askpass.sh
+        export GIT_TERMINAL_PROMPT=0
+
+        if [ -n "$(params.gitops_repo_url)" ]; then
+          rm -rf /tmp/gitops-repo
+          git clone "$(params.gitops_repo_url)" /tmp/gitops-repo
+          cd /tmp/gitops-repo
+        fi
+
+        git fetch origin "$(params.gitops_branch)"
+        git checkout "$(params.gitops_branch)"
+        git pull --ff-only origin "$(params.gitops_branch)"
+
+        sed -i "s|^    tag: .*|    tag: $(params.commit_sha)|" "$(params.gitops_values_file)"
+
+        if git diff --quiet -- "$(params.gitops_values_file)"; then
+          echo "GitOps image tag is already $(params.commit_sha); nothing to commit."
+          exit 0
+        fi
+
+        git config user.name "platform-poc-ci"
+        git config user.email "platform-poc-ci@example.local"
+        git add "$(params.gitops_values_file)"
+        git commit -m "chore: update fastapi-demo image tag [skip ci]"
+        git push origin main
 ---
 apiVersion: tekton.dev/v1
 kind: Pipeline
@@ -153,6 +228,15 @@ spec:
     - name: context_dir
       type: string
       default: crossplane-backstage-poc/apps/fastapi-demo
+    - name: gitops_values_file
+      type: string
+      default: crossplane-backstage-poc/charts/fastapi-demo-appservice/values.yaml
+    - name: gitops_repo_url
+      type: string
+      default: ""
+    - name: gitops_branch
+      type: string
+      default: main
   workspaces:
     - name: source
     - name: dockerconfig
@@ -194,6 +278,23 @@ spec:
           value: $(params.context_dir)
         - name: image
           value: $(params.image_repository):$(params.commit_sha)
+    - name: update-gitops
+      runAfter:
+        - build-push
+      taskRef:
+        name: update-fastapi-demo-gitops
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: commit_sha
+          value: $(params.commit_sha)
+        - name: gitops_values_file
+          value: $(params.gitops_values_file)
+        - name: gitops_repo_url
+          value: $(params.gitops_repo_url)
+        - name: gitops_branch
+          value: $(params.gitops_branch)
 ---
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerBinding
@@ -269,6 +370,12 @@ spec:
             - name: eventTypes
               value:
                 - push
+        - ref:
+            name: cel
+            kind: ClusterInterceptor
+          params:
+            - name: filter
+              value: "!body.head_commit.message.contains('[skip ci]')"
       bindings:
         - ref: fastapi-demo-ci-binding
       template:

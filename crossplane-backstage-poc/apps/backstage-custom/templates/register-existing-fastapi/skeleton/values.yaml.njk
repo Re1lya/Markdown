@@ -1,0 +1,12 @@
+name: ${{ values.serviceName }}
+namespace: ${{ values.crossplaneNamespace }}
+
+appService:
+  namespace: ${{ values.runtimeNamespace }}
+  chartName: fastapi-demo
+  chartVersion: 0.1.0
+  port: ${{ values.appPort }}
+  replicas: ${{ values.replicas }}
+  image:
+    repository: ${{ values.imageRepository }}
+    tag: latest

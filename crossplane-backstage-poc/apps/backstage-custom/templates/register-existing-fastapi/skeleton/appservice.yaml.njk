@@ -1,3 +1,4 @@
+{% raw %}
 apiVersion: platform.example.com/v1alpha1
 kind: AppService
 metadata:
@@ -10,8 +11,9 @@ spec:
   namespace: {{ .Values.appService.namespace | quote }}
   chartName: {{ .Values.appService.chartName | quote }}
   chartVersion: {{ .Values.appService.chartVersion | quote }}
-  port: {{ .Values.appService.port | default 8000 }}
-  replicas: {{ .Values.appService.replicas | default 1 }}
+  port: {{ .Values.appService.port }}
+  replicas: {{ .Values.appService.replicas }}
   image:
     repository: {{ .Values.appService.image.repository | quote }}
     tag: {{ .Values.appService.image.tag | quote }}
+{% endraw %}

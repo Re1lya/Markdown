@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.serviceName }}
+  description: Existing FastAPI service onboarded through the platform Backstage template
+  annotations:
+    backstage.io/kubernetes-id: ${{ values.serviceName }}
+    backstage.io/kubernetes-namespace: ${{ values.runtimeNamespace }}
+    backstage.io/source-location: url:${{ values.sourceRepoUrl }}
+  links:
+    - url: ${{ values.sourceRepoUrl }}
+      title: Source Repository
+      icon: github
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}

@@ -1164,3 +1164,414 @@ Note:
 - The CI Pipeline currently builds and pushes the image.
 - It does not yet write the new image tag back to GitOps values.
 - The next implementation step is to add a Git update task that changes `charts/fastapi-demo-appservice/values.yaml` or a future GitOps values file, then lets Argo CD deploy the new tag.
+
+## 2026-07-08 FastAPI Demo Real CI Succeeded
+
+After creating:
+
+- `ci/ghcr-auth`
+- `ci/github-git-auth`
+
+and after fixing BuildKit's Docker config path, the real FastAPI CI pipeline succeeded.
+
+Successful PipelineRun:
+
+```text
+fastapi-demo-ci-krh4q
+```
+
+Result:
+
+```text
+PipelineRun fastapi-demo-ci-krh4q: Succeeded
+TaskRuns:
+  fastapi-demo-ci-krh4q-clone: Succeeded
+  fastapi-demo-ci-krh4q-test: Succeeded
+  fastapi-demo-ci-krh4q-build-push: Succeeded
+```
+
+Image pushed to GHCR:
+
+```text
+ghcr.io/re1lya/fastapi-demo:1ddefb7862e41ac2646e08c9bd8190248abfd373
+```
+
+Important BuildKit fix:
+
+- Initial BuildKit run built the image but failed to push:
+
+```text
+failed to fetch anonymous token ... 403 Forbidden
+```
+
+- Root cause:
+  - BuildKit did not read Kubernetes docker-registry Secret file `.dockerconfigjson` as Docker's expected `config.json`.
+- Fix in `manifests/tekton/fastapi-demo-ci.yaml`:
+
+```sh
+mkdir -p /tmp/docker-config
+cp "$(workspaces.dockerconfig.path)/.dockerconfigjson" /tmp/docker-config/config.json
+export DOCKER_CONFIG=/tmp/docker-config
+```
+
+Evidence from successful BuildKit logs:
+
+```text
+[auth] re1lya/fastapi-demo:pull,push token for ghcr.io
+pushing manifest for ghcr.io/re1lya/fastapi-demo:1ddefb7862e41ac2646e08c9bd8190248abfd373
+DONE
+```
+
+Current milestone complete:
+
+```text
+GitHub push/webhook
+  -> cloudflared tunnel
+  -> Tekton EventListener
+  -> clone private GitHub repo
+  -> pytest
+  -> BuildKit rootless build
+  -> push image to GHCR
+```
+
+Still remaining for full CD automation:
+
+```text
+Tekton must update GitOps/AppService image.tag
+  -> push that change to GitHub
+  -> Argo CD detects the Git change
+  -> Crossplane updates Helm Release
+  -> fastapi-demo Deployment rolls out the new GHCR image tag
+```
+
+## 2026-07-08 Full FastAPI CI/CD Loop Completed
+
+Implemented and verified the final CD automation step:
+
+```text
+GitHub webhook / manual PipelineRun
+  -> Tekton clone
+  -> pytest
+  -> BuildKit rootless build
+  -> push image to GHCR
+  -> update GitOps values.yaml
+  -> push GitOps commit to GitHub
+  -> Argo CD syncs GitHub chart path
+  -> Crossplane updates provider-helm Release
+  -> fastapi-demo Deployment rolls out new GHCR image
+```
+
+Changes made:
+
+- `D:/Markdown/crossplane-backstage-poc/manifests/argocd/fastapi-demo-appservice-application.yaml`
+  - Changed Argo CD source from in-cluster Helm repo to GitHub:
+
+```text
+repoURL: https://github.com/Re1lya/Markdown.git
+path: crossplane-backstage-poc/charts/fastapi-demo-appservice
+targetRevision: main
+```
+
+- Created Argo CD repo credential secret:
+
+```text
+argocd/markdown-repo
+```
+
+  - It uses the same GitHub PAT from `ci/github-git-auth`.
+  - It allows Argo CD to read `https://github.com/Re1lya/Markdown.git`.
+
+- `D:/Markdown/crossplane-backstage-poc/manifests/tekton/fastapi-demo-ci.yaml`
+  - Added Task `update-fastapi-demo-gitops`.
+  - Added Pipeline task `update-gitops` after `build-push`.
+  - The task edits:
+
+```text
+crossplane-backstage-poc/charts/fastapi-demo-appservice/values.yaml
+```
+
+  - It updates:
+
+```yaml
+appService:
+  image:
+    tag: <commit_sha>
+```
+
+  - It commits with:
+
+```text
+chore: update fastapi-demo image tag [skip ci]
+```
+
+  - It pushes to `main`.
+
+- Added CEL filter to `fastapi-demo-ci-listener`:
+
+```text
+!body.head_commit.message.contains('[skip ci]')
+```
+
+  - Purpose: ignore Tekton's own GitOps update commit and avoid an infinite CI loop.
+
+Successful manual verification PipelineRun:
+
+```text
+fastapi-demo-ci-manual-tw6wn
+```
+
+TaskRuns:
+
+```text
+fastapi-demo-ci-manual-tw6wn-clone: Succeeded
+fastapi-demo-ci-manual-tw6wn-test: Succeeded
+fastapi-demo-ci-manual-tw6wn-build-push: Succeeded
+fastapi-demo-ci-manual-tw6wn-update-gitops: Succeeded
+```
+
+GitOps commit created by Tekton:
+
+```text
+71ebfc4 chore: update fastapi-demo image tag [skip ci]
+```
+
+Argo CD:
+
+```text
+fastapi-demo-appservice
+SYNC STATUS=Synced
+HEALTH STATUS=Healthy
+revision=71ebfc4dec6a95230d2e4b5f2eaa8ba930f76a10
+```
+
+Crossplane:
+
+```text
+default/fastapi-demo
+SYNCED=True
+READY=True
+```
+
+provider-helm Release:
+
+```text
+default/fastapi-demo-27b6ddc77acf
+SYNCED=True
+READY=True
+STATE=deployed
+REVISION=2
+DESCRIPTION=Upgrade complete
+```
+
+Runtime:
+
+```text
+demo/fastapi-demo Deployment 1/1
+demo/fastapi-demo Pod Running
+current tag: 1ddefb7862e41ac2646e08c9bd8190248abfd373
+```
+
+GHCR image pull issue and fix:
+
+- After Argo synced the new GHCR tag, `demo/fastapi-demo` initially hit `ErrImagePull`.
+- Cause:
+  - `ci/ghcr-auth` allowed Tekton/BuildKit to push.
+  - Runtime namespace `demo` did not have GHCR pull credentials.
+- Fix applied:
+  - Copied `ci/ghcr-auth` docker config into `demo/ghcr-auth`.
+  - Patched `demo/default` ServiceAccount:
+
+```powershell
+kubectl patch serviceaccount default -n demo -p '{"imagePullSecrets":[{"name":"ghcr-auth"}]}'
+```
+
+- After deleting the failed Pod, Deployment rolled out successfully.
+
+provider-helm condition note:
+
+- After successful Helm upgrade, provider-helm again temporarily showed `READY=False` while Helm state was already `deployed`.
+- Restarting the provider-helm Pod refreshed the condition:
+
+```powershell
+kubectl delete pod -n crossplane-system -l pkg.crossplane.io/provider=provider-helm
+```
+
+- Final state is healthy.
+
+## 2026-07-08 Backstage Notifications Frontend API Fix
+
+User reported a Backstage UI runtime error:
+
+```text
+NotImplementedError
+No implementation available for apiRef{plugin.notifications.service}
+```
+
+Root cause:
+
+- The custom Backstage app was using the new frontend system.
+- `packages/app/src/App.tsx` registered:
+  - `@backstage/plugin-catalog/alpha`
+  - `@backstage/plugin-kubernetes/alpha`
+  - local `navModule`
+- Some Backstage frontend UI now expects the notifications API.
+- `@backstage/plugin-notifications/alpha` was installed but not registered as a frontend feature.
+
+Fix applied:
+
+- Updated `D:/Markdown/crossplane-backstage-poc/apps/backstage-custom/packages/app/src/App.tsx`
+- Added:
+
+```ts
+import notificationsPlugin from '@backstage/plugin-notifications/alpha';
+```
+
+- Registered it in:
+
+```ts
+features: [catalogPlugin, kubernetesPlugin, notificationsPlugin, navModule]
+```
+
+Verification:
+
+```powershell
+cd D:\Markdown\crossplane-backstage-poc\apps\backstage-custom
+yarn tsc
+yarn build:backend
+docker build -f Dockerfile.overlay -t platform-poc-backstage:0.1.1 .
+kind load docker-image platform-poc-backstage:0.1.1 --name platform-poc
+helm upgrade backstage backstage/backstage -n backstage -f D:\Markdown\crossplane-backstage-poc\manifests\backstage\backstage-values.yaml
+kubectl rollout status deployment/backstage -n backstage --timeout=180s
+```
+
+Current Backstage deployment state after the fix:
+
+```text
+Helm release: backstage revision 7
+Image: platform-poc-backstage:0.1.1
+Deployment: backstage 1/1 Ready
+Service URL through port-forward: http://localhost:7007
+```
+
+The port-forward had stopped during the Pod rollout. It was restarted with:
+
+```powershell
+kubectl port-forward svc/backstage -n backstage 7007:7007
+```
+
+If `http://localhost:7007` is refused in a later session, restart the port-forward before debugging Backstage itself.
+
+## 2026-07-09 Backstage Register Existing FastAPI Template Added
+
+Implemented the POC version of a developer-facing Backstage onboarding flow for existing FastAPI services.
+
+Backstage frontend:
+
+- `D:/Markdown/crossplane-backstage-poc/apps/backstage-custom/packages/app/src/App.tsx`
+  - Added `@backstage/plugin-scaffolder/alpha`
+  - Added `@backstage/plugin-catalog-import/alpha`
+
+Backstage template:
+
+- `D:/Markdown/crossplane-backstage-poc/apps/backstage-custom/templates/register-existing-fastapi/template.yaml`
+- Skeleton files under:
+  - `D:/Markdown/crossplane-backstage-poc/apps/backstage-custom/templates/register-existing-fastapi/skeleton/`
+
+The template is visible in Backstage as:
+
+```text
+Template: default/register-existing-fastapi-service
+Title: Register Existing FastAPI Service
+URL: http://localhost:7007/create
+```
+
+Verified through the Catalog API:
+
+```text
+steps=chart-metadata,chart-values,appservice-template,argocd-application,catalog-info,tekton-ci,publish
+publish_action=publish:github:pull-request
+```
+
+The template opens a GitHub PR against the platform GitOps repository. It generates:
+
+- `gitops/appservices/<serviceName>/Chart.yaml`
+- `gitops/appservices/<serviceName>/values.yaml`
+- `gitops/appservices/<serviceName>/templates/appservice.yaml`
+- `gitops/argocd/<serviceName>-appservice.yaml`
+- `gitops/tekton/<serviceName>-ci.yaml`
+- `catalog/services/<serviceName>/catalog-info.yaml`
+
+Backstage GitHub integration:
+
+- Created Kubernetes Secret:
+
+```text
+backstage/backstage-github-token
+```
+
+- It reuses the token from `ci/github-git-auth`.
+- `manifests/backstage/backstage-values.yaml` exposes it as `GITHUB_TOKEN`.
+- `appConfig.integrations.github[0].token` uses `${GITHUB_TOKEN}`.
+
+Custom Backstage image:
+
+```text
+platform-poc-backstage:0.1.3
+```
+
+Deployment state:
+
+```text
+Helm release: backstage revision 9
+Deployment image: platform-poc-backstage:0.1.3
+Backstage /create: HTTP 200
+```
+
+Crossplane platform API update:
+
+- `AppService.spec.port`
+- `AppService.spec.replicas`
+
+Composition now patches:
+
+- `spec.port` -> Helm values `containerPort`
+- `spec.replicas` -> Helm values `replicaCount`
+
+Tekton shared task update:
+
+- `update-fastapi-demo-gitops` now supports:
+  - `gitops_repo_url`
+  - `gitops_branch`
+- This lets CI clone an application repo, then separately clone and update the platform GitOps repo.
+
+Argo CD app-of-apps added:
+
+- `manifests/argocd/platform-appservices-application.yaml`
+- `manifests/argocd/platform-ci-application.yaml`
+
+Current app-of-apps status:
+
+```text
+platform-appservices: Unknown / Healthy
+platform-ci: Unknown / Healthy
+```
+
+Root cause:
+
+- These apps point to GitHub `main`.
+- The new local directories do not exist in GitHub `main` yet:
+  - `crossplane-backstage-poc/gitops/argocd`
+  - `crossplane-backstage-poc/gitops/tekton`
+
+Required next step before using the template end-to-end:
+
+```text
+Commit and push the new local platform files to https://github.com/Re1lya/Markdown main.
+```
+
+After that:
+
+- Argo CD app-of-apps should become Synced.
+- Backstage template can create onboarding PRs.
+- After a service onboarding PR is merged, Argo CD will apply the generated app and CI config.
+- For each generated service CI listener, expose its EventListener through cloudflared and configure the service repository GitHub webhook.

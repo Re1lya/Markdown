@@ -33,6 +33,14 @@ spec:
                   type: string
                   description: Helm chart name in the platform chart repository.
                   default: helloworld
+                port:
+                  type: integer
+                  description: Container port exposed by the application chart.
+                  default: 8000
+                replicas:
+                  type: integer
+                  description: Desired replica count for charts that support replicaCount.
+                  default: 1
                 message:
                   type: string
                   description: Text returned by the HelloWorld service.

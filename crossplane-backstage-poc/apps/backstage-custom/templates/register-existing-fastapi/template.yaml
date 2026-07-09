@@ -1,0 +1,190 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: register-existing-fastapi-service
+  title: Register Existing FastAPI Service
+  description: Open a GitHub PR that onboards an existing FastAPI repository into the platform GitOps flow.
+  tags:
+    - fastapi
+    - gitops
+    - crossplane
+spec:
+  owner: group:default/platform-team
+  type: service
+  parameters:
+    - title: Service
+      required:
+        - serviceName
+        - owner
+        - sourceRepoUrl
+        - sourceRepoCloneUrl
+        - imageRepository
+      properties:
+        serviceName:
+          title: Service name
+          type: string
+          description: Lowercase Kubernetes and Backstage component name.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          ui:autofocus: true
+        owner:
+          title: Owner
+          type: string
+          default: platform-team
+          description: Backstage owner entity name.
+        sourceRepoUrl:
+          title: Application GitHub repository URL
+          type: string
+          description: Existing FastAPI application repository, for example https://github.com/Re1lya/my-api.git.
+        sourceRepoCloneUrl:
+          title: Application Git clone URL
+          type: string
+          description: HTTPS clone URL used by Tekton, for example https://github.com/Re1lya/my-api.git.
+        sourceBranch:
+          title: Application branch
+          type: string
+          default: main
+        contextDir:
+          title: Source context directory
+          type: string
+          default: .
+          description: Directory containing Dockerfile, requirements, and tests inside the application repo.
+        imageRepository:
+          title: Image repository
+          type: string
+          description: GHCR repository without tag, for example ghcr.io/re1lya/my-api.
+    - title: Runtime
+      required:
+        - runtimeNamespace
+        - appPort
+      properties:
+        runtimeNamespace:
+          title: Kubernetes runtime namespace
+          type: string
+          default: demo
+        crossplaneNamespace:
+          title: Crossplane claim namespace
+          type: string
+          default: default
+        appPort:
+          title: Container port
+          type: integer
+          default: 8000
+        replicas:
+          title: Replicas
+          type: integer
+          default: 1
+    - title: Platform GitOps repository
+      required:
+        - gitopsRepoUrl
+        - gitopsTargetBranch
+      properties:
+        gitopsRepoUrl:
+          title: GitOps repository
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+          default: github.com?owner=Re1lya&repo=Markdown
+        gitopsHttpUrl:
+          title: GitOps repository clone URL
+          type: string
+          default: https://github.com/Re1lya/Markdown.git
+        gitopsTargetBranch:
+          title: Target branch
+          type: string
+          default: main
+  steps:
+    - id: chart-metadata
+      name: Generate AppService Chart metadata
+      action: fetch:template:file
+      input:
+        url: ./skeleton/Chart.yaml.njk
+        targetPath: gitops/appservices/${{ parameters.serviceName }}/Chart.yaml
+        values:
+          serviceName: ${{ parameters.serviceName }}
+    - id: chart-values
+      name: Generate AppService values
+      action: fetch:template:file
+      input:
+        url: ./skeleton/values.yaml.njk
+        targetPath: gitops/appservices/${{ parameters.serviceName }}/values.yaml
+        values:
+          serviceName: ${{ parameters.serviceName }}
+          imageRepository: ${{ parameters.imageRepository }}
+          runtimeNamespace: ${{ parameters.runtimeNamespace }}
+          crossplaneNamespace: ${{ parameters.crossplaneNamespace }}
+          appPort: ${{ parameters.appPort }}
+          replicas: ${{ parameters.replicas }}
+    - id: appservice-template
+      name: Generate Crossplane AppService template
+      action: fetch:template:file
+      input:
+        url: ./skeleton/appservice.yaml.njk
+        targetPath: gitops/appservices/${{ parameters.serviceName }}/templates/appservice.yaml
+        values: {}
+    - id: argocd-application
+      name: Generate Argo CD Application
+      action: fetch:template:file
+      input:
+        url: ./skeleton/argocd-application.yaml.njk
+        targetPath: gitops/argocd/${{ parameters.serviceName }}-appservice.yaml
+        values:
+          serviceName: ${{ parameters.serviceName }}
+          gitopsHttpUrl: ${{ parameters.gitopsHttpUrl }}
+          gitopsTargetBranch: ${{ parameters.gitopsTargetBranch }}
+          crossplaneNamespace: ${{ parameters.crossplaneNamespace }}
+    - id: catalog-info
+      name: Generate Backstage catalog entity
+      action: fetch:template:file
+      input:
+        url: ./skeleton/catalog-info.yaml.njk
+        targetPath: catalog/services/${{ parameters.serviceName }}/catalog-info.yaml
+        values:
+          serviceName: ${{ parameters.serviceName }}
+          owner: ${{ parameters.owner }}
+          sourceRepoUrl: ${{ parameters.sourceRepoUrl }}
+          runtimeNamespace: ${{ parameters.runtimeNamespace }}
+    - id: tekton-ci
+      name: Generate Tekton CI entrypoint
+      action: fetch:template:file
+      input:
+        url: ./skeleton/tekton-ci.yaml.njk
+        targetPath: gitops/tekton/${{ parameters.serviceName }}-ci.yaml
+        values:
+          serviceName: ${{ parameters.serviceName }}
+          sourceRepoCloneUrl: ${{ parameters.sourceRepoCloneUrl }}
+          contextDir: ${{ parameters.contextDir }}
+          imageRepository: ${{ parameters.imageRepository }}
+          gitopsHttpUrl: ${{ parameters.gitopsHttpUrl }}
+          gitopsTargetBranch: ${{ parameters.gitopsTargetBranch }}
+    - id: publish
+      name: Open GitHub pull request
+      action: publish:github:pull-request
+      input:
+        repoUrl: ${{ parameters.gitopsRepoUrl }}
+        branchName: backstage/register-${{ parameters.serviceName }}
+        targetBranchName: ${{ parameters.gitopsTargetBranch }}
+        title: Onboard ${{ parameters.serviceName }} FastAPI service
+        description: |
+          This PR was created by Backstage to onboard `${{ parameters.serviceName }}`.
+
+          It adds:
+          - a Crossplane AppService Helm chart
+          - an Argo CD Application manifest
+          - a Tekton CI EventListener and Pipeline
+          - a Backstage catalog-info.yaml file
+
+          After merging, Argo CD will sync the generated Application and CI entrypoint. Register the generated catalog file if it is not already visible in Backstage.
+        commitMessage: Onboard ${{ parameters.serviceName }} FastAPI service
+        gitAuthorName: platform-poc-backstage
+        gitAuthorEmail: platform-poc-backstage@example.local
+        update: true
+  output:
+    links:
+      - title: Pull Request
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Catalog file after merge
+        url: https://github.com/Re1lya/Markdown/blob/${{ parameters.gitopsTargetBranch }}/crossplane-backstage-poc/catalog/services/${{ parameters.serviceName }}/catalog-info.yaml
+      - title: Tekton CI file after merge
+        url: https://github.com/Re1lya/Markdown/blob/${{ parameters.gitopsTargetBranch }}/crossplane-backstage-poc/gitops/tekton/${{ parameters.serviceName }}-ci.yaml

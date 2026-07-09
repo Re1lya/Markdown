@@ -4,8 +4,16 @@ backstage:
   image:
     registry: ""
     repository: platform-poc-backstage
-    tag: "0.1.0"
+    tag: "0.1.3"
     pullPolicy: IfNotPresent
+
+  extraEnvVars:
+    - name: GITHUB_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: backstage-github-token
+          key: token
+          optional: true
 
   appConfig:
     app:
@@ -13,6 +21,10 @@ backstage:
       baseUrl: http://localhost:7007
     organization:
       name: Platform POC
+    integrations:
+      github:
+        - host: github.com
+          token: ${GITHUB_TOKEN}
     backend:
       baseUrl: http://localhost:7007
       listen:
@@ -56,6 +68,11 @@ backstage:
           target: /app/catalog/guest-user.yaml
         - type: file
           target: /app/catalog/platform-team.yaml
+        - type: file
+          target: /app/templates/register-existing-fastapi/template.yaml
+          rules:
+            - allow:
+                - Template
     kubernetes:
       serviceLocatorMethod:
         type: multiTenant
