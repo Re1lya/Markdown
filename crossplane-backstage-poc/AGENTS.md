@@ -111,6 +111,49 @@ Backstage displays HelloWorld through Kubernetes plugin label matching
 
 Do not start with a frontend/backend HelloWorld chart. That would test application-to-application connectivity, but the user's current goal is to validate Crossplane-managed service visibility in Backstage.
 
+## Portal Boundary Decision
+
+Backstage is the current developer portal for this POC, not the durable platform core. Treat it as a replaceable client layer.
+
+Durable platform core:
+
+- Kubernetes runtime
+- Crossplane `AppService` API and Composition
+- Helm charts and chart values
+- Tekton CI pipelines and EventListeners
+- BuildKit image builds
+- Argo CD GitOps sync
+- GitOps repository directory contract
+
+Replaceable client layer:
+
+- Backstage UI
+- Backstage Scaffolder templates
+- Backstage Catalog rendering
+- Backstage plugin-specific configuration
+
+The stable contract between a client and the platform is the generated GitOps file layout:
+
+```text
+crossplane-backstage-poc/
+  catalog/services/<service>/catalog-info.yaml
+  gitops/appservices/<service>/Chart.yaml
+  gitops/appservices/<service>/values.yaml
+  gitops/appservices/<service>/templates/appservice.yaml
+  gitops/argocd/<service>-appservice.yaml
+  gitops/tekton/<service>-ci.yaml
+```
+
+If Backstage is replaced later by a custom web portal, CLI, TUI, or another developer portal, the replacement should generate or update the same files and keep the same platform API contract. Crossplane, Tekton, Argo CD, Helm, and Kubernetes should not depend on Backstage internals.
+
+Catalog automation direction:
+
+- Generated services must place their entity metadata at `crossplane-backstage-poc/catalog/services/<service>/catalog-info.yaml`.
+- Backstage should discover these files with GitHub Catalog Discovery rather than requiring a manual ConfigMap edit for every new service.
+- Argo CD webhook and Backstage Catalog discovery solve different problems:
+  - Argo CD webhook shortens GitOps-to-deploy latency.
+  - Backstage Catalog discovery makes newly merged service metadata appear in the developer portal.
+
 ## Recommended Implementation Path
 
 ### Phase 1: Local Cluster
@@ -1575,3 +1618,250 @@ After that:
 - Backstage template can create onboarding PRs.
 - After a service onboarding PR is merged, Argo CD will apply the generated app and CI config.
 - For each generated service CI listener, expose its EventListener through cloudflared and configure the service repository GitHub webhook.
+
+## 2026-07-09 Backstage Catalog GitHub Discovery Added
+
+Backstage has been updated so newly generated service catalog files can be discovered from GitHub instead of being manually added to the Backstage Catalog ConfigMap.
+
+Design principle:
+
+- Backstage is a replaceable developer portal/client.
+- The durable platform contract is the GitOps file layout under `crossplane-backstage-poc/`.
+- Future clients must generate the same files rather than depending on Backstage internals.
+
+Provider installed and registered:
+
+- Package added to Backstage backend:
+  - `@backstage/plugin-catalog-backend-module-github`
+- Registered in:
+  - `D:/Markdown/crossplane-backstage-poc/apps/backstage-custom/packages/backend/src/index.ts`
+
+Backstage config:
+
+- `D:/Markdown/crossplane-backstage-poc/manifests/backstage/backstage-values.yaml`
+- Added GitHub Catalog Discovery provider:
+
+```yaml
+catalog:
+  providers:
+    github:
+      platformPocServices:
+        organization: Re1lya
+        catalogPath: /crossplane-backstage-poc/catalog/services/*/catalog-info.yaml
+        filters:
+          branch: main
+          repository: Markdown
+        schedule:
+          frequency:
+            minutes: 5
+          timeout:
+            minutes: 3
+```
+
+Static Catalog entries are still used only for bootstrap entities:
+
+- `helloworld`
+- `fastapi-demo`
+- `guest`
+- `platform-team`
+- Backstage template file
+
+Generated service entries should live in GitHub at:
+
+```text
+crossplane-backstage-poc/catalog/services/<service>/catalog-info.yaml
+```
+
+Image and deployment:
+
+- Built custom Backstage image:
+  - `platform-poc-backstage:0.1.5`
+- Loaded it into kind cluster:
+  - `kind load docker-image platform-poc-backstage:0.1.5 --name platform-poc`
+- Upgraded Backstage with Helm:
+  - Release revision: `12`
+  - Image: `platform-poc-backstage:0.1.5`
+  - Deployment rolled out successfully.
+
+Helm note:
+
+- A previous manual `kubectl apply` on Backstage ConfigMaps created field-manager conflicts with Helm 4 server-side apply.
+- The successful upgrade used:
+
+```powershell
+helm upgrade backstage backstage/backstage `
+  -n backstage `
+  -f D:\Markdown\crossplane-backstage-poc\manifests\backstage\backstage-values.yaml `
+  --force-conflicts
+```
+
+Verification:
+
+- Backstage logs show the provider task was registered:
+
+```text
+Registered scheduled task: github-provider:platformPocServices:refresh
+Read 11 GitHub repositories (1 matching the pattern)
+```
+
+- Authenticated Catalog API lookup for `fastapi-demo-2` succeeded.
+- The returned entity proves it came from GitHub discovery:
+
+```text
+backstage.io/managed-by-location:
+url:https://github.com/Re1lya/Markdown/tree/main/crossplane-backstage-poc/catalog/services/fastapi-demo-2/catalog-info.yaml
+
+backstage.io/managed-by-origin-location:
+url:https://github.com/Re1lya/Markdown/blob/main/crossplane-backstage-poc/catalog/services/*/catalog-info.yaml
+```
+
+Implication:
+
+- Future services created by the Backstage template should appear in Catalog after their onboarding PR is merged and the GitHub discovery provider refreshes.
+- Argo CD webhook is still separate; it improves GitOps sync latency but does not control Backstage Catalog discovery.
+
+## 2026-07-09 Cluster Rebuild With extraPortMappings
+
+The local kind cluster `platform-poc` was rebuilt successfully with host port mappings prepared for better later demos.
+
+Updated kind config:
+
+```text
+D:/Markdown/crossplane-backstage-poc/configs/kind-platform-poc.yaml
+```
+
+Important mapping:
+
+```yaml
+extraPortMappings:
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+  - containerPort: 30080
+    hostPort: 30080
+    protocol: TCP
+```
+
+Before deleting the old cluster, these external/runtime secrets were backed up locally under `.runtime/secret-backup/` and then restored into the new cluster:
+
+- `ci/ghcr-auth`
+- `ci/github-git-auth`
+- `ci/github-webhook-secret`
+- `backstage/backstage-github-token`
+- `argocd/markdown-repo`
+
+Do not commit `.runtime/`; it contains local runtime logs and sensitive secret backups.
+
+Rebuild sequence used:
+
+```powershell
+kind delete cluster --name platform-poc
+kind create cluster --config D:\Markdown\crossplane-backstage-poc\configs\kind-platform-poc.yaml
+kubectl wait --for=condition=Ready nodes --all --timeout=180s
+```
+
+Platform components restored:
+
+- Crossplane chart `2.3.3`
+- `provider-kubernetes:v1.2.1`
+- `provider-helm:v1.3.0`
+- `function-patch-and-transform:v0.10.7`
+- `AppService` XRD and `appservice-helm-release` Composition
+- Argo CD through Crossplane-managed Helm Release `default/argocd`
+- Tekton Pipelines and Triggers from the same official release URLs used earlier
+- In-cluster Helm repo `platform-system/helm-repo`
+- Backstage Helm release using local image `platform-poc-backstage:0.1.5`
+
+Rebuild issues and fixes:
+
+1. AppService Helm Releases initially failed because the in-cluster Helm repo did not exist after cluster recreation.
+   - Symptom: Crossplane `Release` could not fetch `http://helm-repo.platform-system.svc.cluster.local/index.yaml`.
+   - Fix: reran `D:/Markdown/crossplane-backstage-poc/scripts/publish-helloworld-chart-repo.ps1`.
+
+2. `fastapi-demo-2-ci-listener` initially crash-looped.
+   - Root cause: shared Tekton Triggers RBAC from `manifests/tekton/github-webhook-smoke.yaml` had not been restored.
+   - Fix: applied `D:/Markdown/crossplane-backstage-poc/manifests/tekton/github-webhook-smoke.yaml`, then restarted the EventListener Pod.
+   - Note: this means shared CI RBAC should eventually be moved into GitOps/bootstrap so future rebuilds do not require remembering the smoke manifest.
+
+3. Backstage initially stayed unready.
+   - Root cause: Backstage started before PostgreSQL accepted connections and got stuck at readiness `503`.
+   - Fix: after PostgreSQL became Ready, deleted the Backstage Pod and let the Deployment recreate it.
+
+Current verified state after rebuild:
+
+```text
+Nodes:
+  platform-poc-control-plane Ready
+  platform-poc-worker Ready
+  platform-poc-worker2 Ready
+
+Argo CD Applications:
+  fastapi-demo-2-appservice Synced / Healthy
+  fastapi-demo-appservice Synced / Healthy
+  helloworld-appservice Synced / Healthy
+  platform-appservices Synced / Healthy
+  platform-ci Synced / Healthy
+
+Crossplane AppServices:
+  default/helloworld READY=True
+  default/fastapi-demo READY=True
+  default/fastapi-demo-2 READY=True
+
+Tekton EventListeners:
+  ci/fastapi-demo-2-ci-listener READY=True
+  ci/github-listener READY=True
+
+Backstage:
+  backstage/backstage READY=1/1
+  backstage/backstage-postgresql READY=1/1
+```
+
+Runtime service verification:
+
+```powershell
+kubectl port-forward -n demo service/fastapi-demo-2 18082:80
+curl.exe http://localhost:18082/health
+```
+
+Expected response:
+
+```json
+{"status":"ok"}
+```
+
+Backstage verification:
+
+- Backstage port-forward was restarted on local port `7007`.
+- Authenticated Catalog API lookup for `component:default/fastapi-demo-2` succeeded.
+- The entity is still managed by GitHub Catalog Discovery, not by a manual static ConfigMap entry.
+
+External connection reminder after rebuild:
+
+- GitHub repository configuration remains valid.
+- GHCR/GitHub/Backstage tokens were restored from local backup in this rebuild.
+- The cloudflared quick tunnel URL does not survive process/window shutdown.
+- Before testing GitHub webhook again, start a fresh tunnel to the current EventListener and update the GitHub Webhook Payload URL.
+- After each rebuild or terminal restart, start a fresh tunnel for `ci/el-fastapi-demo-2-ci-listener`:
+
+```text
+Local port-forward:
+  localhost:18081 -> ci/service/el-fastapi-demo-2-ci-listener:8080
+```
+
+Use the newly generated `https://*.trycloudflare.com` URL as the GitHub Webhook Payload URL while the local `kubectl port-forward` and `cloudflared` processes remain running. When those processes stop, generate a new quick tunnel and update the GitHub webhook again.
+
+Gateway next-step note:
+
+- The cluster was rebuilt specifically so Gateway/Ingress style local exposure can bind host ports.
+- Continue from:
+  - `D:/Markdown/crossplane-backstage-poc/docs/GATEWAY_NEXT.md`
+- Recommended next validation:
+  - install one Gateway API controller
+  - create one shared platform Gateway
+  - route `demo/fastapi-demo-2` first
+  - verify `curl.exe http://localhost/health` or the selected local route returns `{"status":"ok"}`
+  - then add the service URL as a Backstage Catalog link
+- Keep Backstage replaceable: the durable contract should be Gateway/HTTPRoute manifests generated into GitOps, not a Backstage-only runtime dependency.

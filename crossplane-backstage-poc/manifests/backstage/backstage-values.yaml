@@ -4,7 +4,7 @@ backstage:
   image:
     registry: ""
     repository: platform-poc-backstage
-    tag: "0.1.3"
+    tag: "0.1.5"
     pullPolicy: IfNotPresent
 
   extraEnvVars:
@@ -49,6 +49,19 @@ backstage:
           userEntityRef: user:default/guest
           dangerouslyAllowOutsideDevelopment: true
     catalog:
+      providers:
+        github:
+          platformPocServices:
+            organization: Re1lya
+            catalogPath: /crossplane-backstage-poc/catalog/services/*/catalog-info.yaml
+            filters:
+              branch: main
+              repository: Markdown
+            schedule:
+              frequency:
+                minutes: 5
+              timeout:
+                minutes: 3
       rules:
         - allow:
             - Component

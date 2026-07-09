@@ -1,7 +1,15 @@
 .git
 .yarn/cache
 .yarn/install-state.gz
-node_modules
+node_modules/*
+!node_modules/@backstage/
+node_modules/@backstage/*
+!node_modules/@backstage/plugin-catalog-backend-module-github/
+!node_modules/@backstage/plugin-catalog-backend-module-github/**
+!node_modules/@octokit/
+node_modules/@octokit/*
+!node_modules/@octokit/auth-callback/
+!node_modules/@octokit/auth-callback/**
 packages/*/src
 packages/*/node_modules
 plugins

@@ -5,4 +5,6 @@ WORKDIR /app
 
 COPY --chown=node:node packages/backend/dist/bundle.tar.gz /tmp/backstage-bundle.tar.gz
 RUN tar xzf /tmp/backstage-bundle.tar.gz && rm /tmp/backstage-bundle.tar.gz
+COPY --chown=node:node node_modules/@backstage/plugin-catalog-backend-module-github /app/node_modules/@backstage/plugin-catalog-backend-module-github
+COPY --chown=node:node node_modules/@octokit/auth-callback /app/node_modules/@octokit/auth-callback
 COPY --chown=node:node templates /app/templates
