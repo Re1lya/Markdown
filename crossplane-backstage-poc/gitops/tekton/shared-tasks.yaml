@@ -1,0 +1,177 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: clone-repo
+  namespace: ci
+spec:
+  params:
+    - name: repo_url
+      type: string
+    - name: git_ref
+      type: string
+  workspaces:
+    - name: source
+  steps:
+    - name: clone
+      image: alpine/git:2.47.2
+      workingDir: $(workspaces.source.path)
+      env:
+        - name: GIT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: github-git-auth
+              key: username
+        - name: GIT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: github-git-auth
+              key: token
+      script: |
+        #!/bin/sh
+        set -eu
+        cat > /tmp/git-askpass.sh <<'EOF'
+        #!/bin/sh
+        case "$1" in
+          *Username*) echo "$GIT_USERNAME" ;;
+          *) echo "$GIT_TOKEN" ;;
+        esac
+        EOF
+        chmod +x /tmp/git-askpass.sh
+        export GIT_ASKPASS=/tmp/git-askpass.sh
+        export GIT_TERMINAL_PROMPT=0
+        rm -rf repo
+        git clone "$(params.repo_url)" repo
+        cd repo
+        git checkout "$(params.git_ref)"
+        git rev-parse HEAD
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: test-fastapi-demo
+  namespace: ci
+spec:
+  params:
+    - name: context_dir
+      type: string
+  workspaces:
+    - name: source
+  steps:
+    - name: pytest
+      image: public.ecr.aws/docker/library/python:3.12-slim
+      workingDir: $(workspaces.source.path)/repo/$(params.context_dir)
+      script: |
+        #!/bin/sh
+        set -eu
+        python -m pip install --no-cache-dir -r requirements-dev.txt
+        python -m pytest -q
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: build-push-fastapi-demo
+  namespace: ci
+spec:
+  params:
+    - name: image
+      type: string
+    - name: context_dir
+      type: string
+  workspaces:
+    - name: source
+    - name: dockerconfig
+  steps:
+    - name: build-and-push
+      image: moby/buildkit:rootless
+      workingDir: $(workspaces.source.path)/repo
+      env:
+        - name: DOCKER_CONFIG
+          value: $(workspaces.dockerconfig.path)
+        - name: BUILDKITD_FLAGS
+          value: --oci-worker-no-process-sandbox
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+      script: |
+        #!/bin/sh
+        set -eu
+        mkdir -p /tmp/docker-config
+        cp "$(workspaces.dockerconfig.path)/.dockerconfigjson" /tmp/docker-config/config.json
+        export DOCKER_CONFIG=/tmp/docker-config
+        buildctl-daemonless.sh build \
+          --frontend dockerfile.v0 \
+          --local context="$(workspaces.source.path)/repo/$(params.context_dir)" \
+          --local dockerfile="$(workspaces.source.path)/repo/$(params.context_dir)" \
+          --output "type=image,name=$(params.image),push=true"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: update-fastapi-demo-gitops
+  namespace: ci
+spec:
+  params:
+    - name: commit_sha
+      type: string
+    - name: gitops_values_file
+      type: string
+      default: crossplane-backstage-poc/charts/fastapi-demo-appservice/values.yaml
+    - name: gitops_repo_url
+      type: string
+      default: ""
+    - name: gitops_branch
+      type: string
+      default: main
+  workspaces:
+    - name: source
+  steps:
+    - name: update-values
+      image: alpine/git:2.47.2
+      workingDir: $(workspaces.source.path)/repo
+      env:
+        - name: GIT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: github-git-auth
+              key: username
+        - name: GIT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: github-git-auth
+              key: token
+      script: |
+        #!/bin/sh
+        set -eu
+        cat > /tmp/git-askpass.sh <<'EOF'
+        #!/bin/sh
+        case "$1" in
+          *Username*) echo "$GIT_USERNAME" ;;
+          *) echo "$GIT_TOKEN" ;;
+        esac
+        EOF
+        chmod +x /tmp/git-askpass.sh
+        export GIT_ASKPASS=/tmp/git-askpass.sh
+        export GIT_TERMINAL_PROMPT=0
+
+        if [ -n "$(params.gitops_repo_url)" ]; then
+          rm -rf /tmp/gitops-repo
+          git clone "$(params.gitops_repo_url)" /tmp/gitops-repo
+          cd /tmp/gitops-repo
+        fi
+
+        git fetch origin "$(params.gitops_branch)"
+        git checkout "$(params.gitops_branch)"
+        git pull --ff-only origin "$(params.gitops_branch)"
+
+        sed -i "s|^    tag: .*|    tag: $(params.commit_sha)|" "$(params.gitops_values_file)"
+
+        if git diff --quiet -- "$(params.gitops_values_file)"; then
+          echo "GitOps image tag is already $(params.commit_sha); nothing to commit."
+          exit 0
+        fi
+
+        git config user.name "platform-poc-ci"
+        git config user.email "platform-poc-ci@example.local"
+        git add "$(params.gitops_values_file)"
+        git commit -m "chore: update fastapi-demo image tag [skip ci]"
+        git push origin "$(params.gitops_branch)"

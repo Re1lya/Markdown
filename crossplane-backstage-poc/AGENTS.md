@@ -1948,3 +1948,49 @@ http://localhost:30080/health
 ```
 
 Because Backstage Catalog discovery reads from GitHub, this link appears in Backstage after the catalog file is pushed and the GitHub discovery provider refreshes.
+
+## 2026-07-09 Tekton Shared Task GitOps Fix
+
+User reported `PipelineRun fastapi-demo-2-ci-2clkl` failed with:
+
+```text
+Reason: CouldntGetTask
+Pipeline ci/fastapi-demo-2-ci can't be Run; it contains Tasks that don't exist:
+Task "clone-repo": tasks.tekton.dev "clone-repo" not found
+```
+
+Investigation:
+
+- `ci` namespace only had `task.tekton.dev/github-push-smoke`.
+- `fastapi-demo-2-ci` Pipeline references shared Tasks:
+  - `clone-repo`
+  - `test-fastapi-demo`
+  - `build-push-fastapi-demo`
+  - `update-fastapi-demo-gitops`
+- These Tasks existed only in `manifests/tekton/fastapi-demo-ci.yaml`.
+- Argo CD `platform-ci` syncs only `crossplane-backstage-poc/gitops/tekton`.
+
+Root cause:
+
+- Shared Tekton Tasks were not part of the GitOps-managed `platform-ci` source path.
+- After cluster rebuild, Argo CD restored service-specific Pipeline/EventListener resources but not the shared Task definitions.
+
+Fix:
+
+- Added GitOps-managed shared Tasks:
+
+```text
+D:/Markdown/crossplane-backstage-poc/gitops/tekton/shared-tasks.yaml
+```
+
+Expected result after apply/sync:
+
+```text
+kubectl get task -n ci
+
+clone-repo
+test-fastapi-demo
+build-push-fastapi-demo
+update-fastapi-demo-gitops
+github-push-smoke
+```
