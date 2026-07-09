@@ -1,0 +1,12 @@
+name: fastapi-demo-2
+namespace: default
+
+appService:
+  namespace: demo
+  chartName: fastapi-demo
+  chartVersion: 0.1.0
+  port: 8000
+  replicas: 1
+  image:
+    repository: ghcr.io/re1lya/fastapi-demo-2
+    tag: latest

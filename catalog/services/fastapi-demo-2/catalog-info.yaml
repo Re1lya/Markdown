@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: fastapi-demo-2
+  description: Existing FastAPI service onboarded through the platform Backstage template
+  annotations:
+    backstage.io/kubernetes-id: fastapi-demo-2
+    backstage.io/kubernetes-namespace: demo
+    backstage.io/source-location: url:https://github.com/Re1lya/Markdown
+  links:
+    - url: https://github.com/Re1lya/Markdown
+      title: Source Repository
+      icon: github
+spec:
+  type: service
+  lifecycle: experimental
+  owner: platform-team
