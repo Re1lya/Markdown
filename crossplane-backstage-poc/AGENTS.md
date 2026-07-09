@@ -1865,3 +1865,86 @@ Gateway next-step note:
   - verify `curl.exe http://localhost/health` or the selected local route returns `{"status":"ok"}`
   - then add the service URL as a Backstage Catalog link
 - Keep Backstage replaceable: the durable contract should be Gateway/HTTPRoute manifests generated into GitOps, not a Backstage-only runtime dependency.
+
+## 2026-07-09 Envoy Gateway First Service Route
+
+Installed Envoy Gateway with Helm:
+
+```powershell
+helm upgrade --install eg oci://docker.io/envoyproxy/gateway-helm `
+  --version v1.8.2 `
+  -n envoy-gateway-system `
+  --create-namespace `
+  --wait `
+  --timeout 5m
+```
+
+Created the first Gateway API route manifest:
+
+```text
+D:/Markdown/crossplane-backstage-poc/manifests/gateway/fastapi-demo-2-gateway.yaml
+```
+
+Resources:
+
+- `GatewayClass/envoy`
+- `EnvoyProxy/envoy-gateway-system/platform-gateway-proxy`
+- `Gateway/demo/platform-gateway`
+- `HTTPRoute/demo/fastapi-demo-2`
+
+Route:
+
+```text
+http://localhost:30080/health
+  -> Envoy Gateway NodePort 30080
+  -> HTTPRoute demo/fastapi-demo-2
+  -> Service demo/fastapi-demo-2:80
+  -> FastAPI Pod
+```
+
+Important local-kind fix:
+
+- Envoy Gateway initially generated a `LoadBalancer` Service with `externalTrafficPolicy: Local`.
+- In this kind setup, host port `30080` maps to the control-plane node, but the Envoy Pod can run on a worker node.
+- With `externalTrafficPolicy: Local`, traffic reaching the control-plane NodePort did not forward to the worker node, so Windows `curl http://localhost:30080/health` hung.
+- The fix is declared in `EnvoyProxy`:
+
+```yaml
+provider:
+  type: Kubernetes
+  kubernetes:
+    envoyService:
+      type: NodePort
+      externalTrafficPolicy: Cluster
+      patch:
+        type: StrategicMerge
+        value:
+          spec:
+            ports:
+              - name: http-80
+                port: 80
+                nodePort: 30080
+```
+
+Verification:
+
+```powershell
+curl.exe --noproxy "*" --connect-timeout 3 --max-time 10 -s -i http://localhost:30080/health
+```
+
+Expected response includes:
+
+```json
+{"status":"ok"}
+```
+
+Backstage service link:
+
+- Updated `D:/Markdown/crossplane-backstage-poc/catalog/services/fastapi-demo-2/catalog-info.yaml`
+- Added `Open Service` link:
+
+```text
+http://localhost:30080/health
+```
+
+Because Backstage Catalog discovery reads from GitHub, this link appears in Backstage after the catalog file is pushed and the GitHub discovery provider refreshes.
