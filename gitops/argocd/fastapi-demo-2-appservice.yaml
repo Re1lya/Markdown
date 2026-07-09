@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fastapi-demo-2-appservice
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Re1lya/Markdown.git
+    path: crossplane-backstage-poc/gitops/appservices/fastapi-demo-2
+    targetRevision: main
+    helm:
+      releaseName: fastapi-demo-2-appservice
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
