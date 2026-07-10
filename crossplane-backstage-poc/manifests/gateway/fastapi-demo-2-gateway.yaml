@@ -58,7 +58,7 @@ spec:
     - matches:
         - path:
             type: PathPrefix
-            value: /health
+            value: /
       backendRefs:
         - name: fastapi-demo-2
           port: 80

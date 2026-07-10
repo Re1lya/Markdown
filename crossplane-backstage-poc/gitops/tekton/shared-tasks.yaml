@@ -65,6 +65,7 @@ spec:
         set -eu
         python -m pip install --no-cache-dir -r requirements-dev.txt
         python -m pytest -q
+        echo "TEST PASS"
 ---
 apiVersion: tekton.dev/v1
 kind: Task
