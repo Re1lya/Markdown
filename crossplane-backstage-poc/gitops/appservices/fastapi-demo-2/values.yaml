@@ -9,4 +9,4 @@ appService:
   replicas: 1
   image:
     repository: ghcr.io/re1lya/fastapi-demo-2
-    tag: 1628ffbc768f7e01d1b365a0978191d9df26a568
+    tag: 711e5ba6245ea893b62b74f04602c683d4061d1f
