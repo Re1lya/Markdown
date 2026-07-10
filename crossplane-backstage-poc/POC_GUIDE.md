@@ -1,26 +1,26 @@
-# Platform Engineering POC — Report & Walkthrough
+# 平台工程 POC — 报告与演示
 
-## 1. Overview
+## 1. 概述
 
-This POC validates a **platform engineering workflow** on a local Kubernetes cluster (kind). A developer pushes code to GitHub and the platform automates everything from build to production-like delivery — fully observable across Backstage, Argo CD, and Tekton dashboards.
+本 POC 在本地 Kubernetes 集群（kind）上验证了一套**平台工程工作流**。开发者将代码推送到 GitHub，平台自动完成从构建到生产级交付的全部流程——全程可通过 Backstage、Argo CD 和 Tekton 仪表盘进行观测。
 
-### Platform Stack
+### 平台技术栈
 
-| Layer | Component | Role |
+| 层次 | 组件 | 职责 |
 |-------|-----------|------|
-| **CI** | Tekton Pipelines + Triggers | GitHub webhook → clone → test → build → push to GHCR |
-| **Registry** | GitHub Container Registry (GHCR) | OCI image storage |
-| **CD / GitOps** | Argo CD | Syncs Helm charts from Git to cluster, auto-healing |
-| **Provisioning** | Crossplane (provider-helm) | Composes AppService abstractions into Helm Releases |
-| **Gateway** | Envoy Gateway | Exposes services via HTTPRoute |
-| **Developer Portal** | Backstage | Catalog, Kubernetes plugin, Software Templates for self-service |
-| **Runtime** | Kubernetes (kind) | Runs everything — platform control plane + application workloads |
+| **CI** | Tekton Pipelines + Triggers | GitHub Webhook → 克隆 → 测试 → 构建 → 推送至 GHCR |
+| **镜像仓库** | GitHub Container Registry (GHCR) | OCI 镜像存储 |
+| **CD / GitOps** | Argo CD | 从 Git 同步 Helm Chart 到集群，自动修复 |
+| **资源编排** | Crossplane (provider-helm) | 将 AppService 抽象组合成 Helm Release |
+| **网关** | Envoy Gateway | 通过 HTTPRoute 暴露服务 |
+| **开发者门户** | Backstage | 目录、Kubernetes 插件、自助式软件模板 |
+| **运行时** | Kubernetes (kind) | 运行一切——平台控制面 + 应用工作负载 |
 
-The entire flow is **Git-driven**: code push triggers CI, CI publishes the image, CI updates the GitOps repo, Argo CD syncs the new desired state, Crossplane reconciles the Helm Release, and Kubernetes rolls out the new Pod — with no manual `kubectl` or `docker` commands.
+整个流程是**全 Git 驱动**的：代码推送触发 CI，CI 发布镜像，CI 更新 GitOps 仓库，Argo CD 同步新的目标状态，Crossplane 调和 Helm Release，Kubernetes 滚动更新 Pod——全程无需手动执行 `kubectl` 或 `docker` 命令。
 
 ---
 
-## 2. Architecture
+## 2. 架构
 
 ```
 ┌──────────┐    Webhook     ┌───────────────┐
@@ -65,52 +65,52 @@ The entire flow is **Git-driven**: code push triggers CI, CI publishes the image
 │           → http://<host>/              │
 └─────────────────────────────────────────┘
        │
-       │ backstage.io/kubernetes-id label
+       │ backstage.io/kubernetes-id 标签
        ▼
 ┌────────────────┐
 │   Backstage    │
-│   Catalog +    │
+│   目录 +       │
 │   Kubernetes   │
-│   Plugin       │
+│   插件         │
 └────────────────┘
 ```
 
-### Control Plane vs Application Plane
+### 控制面 vs 应用面
 
-| Plane | Namespaces | What Runs |
+| 层面 | 命名空间 | 运行内容 |
 |-------|-----------|-----------|
-| **Control Plane** | `crossplane-system`, `argocd`, `tekton-pipelines`, `ci`, `backstage`, `envoy-gateway-system` | Platform components |
-| **Application** | `demo` (per service) | FastAPI workloads, Deployments, Services |
+| **控制面** | `crossplane-system`、`argocd`、`tekton-pipelines`、`ci`、`backstage`、`envoy-gateway-system` | 平台组件 |
+| **应用面** | `demo`（按服务划分） | FastAPI 工作负载、Deployment、Service |
 
-Control plane components are **themselves managed by Crossplane** (Argo CD, Backstage), proving the platform can self-host.
+控制面组件**本身也由 Crossplane 管理**（Argo CD、Backstage），证明了平台可以实现自托管。
 
 ---
 
-## 3. CI/CD End-to-End Flow
+## 3. CI/CD 端到端流程
 
-### The Complete Chain
+### 完整链路
 
 ```
-GitHub Push
+GitHub 推送
   → GitHub Webhook
   → Tekton EventListener (ci/el-fastapi-demo-ci-listener)
-  → PipelineRun triggers:
-      1. clone          — git clone the repo at the pushed commit
-      2. pytest         — run tests in python:3.12-slim
-      3. BuildKit build — rootless OCI build, no Docker daemon required
-      4. push GHCR      — ghcr.io/re1lya/fastapi-demo:<commit-sha>
-      5. update GitOps  — edit charts/fastapi-demo-appservice/values.yaml
-                          commit & push with [skip ci]
-  → Argo CD detects drift, syncs the chart (30s polling)
-  → Crossplane reconciles the AppService claim into a Helm Release
-  → provider-helm deploys the runtime chart (Deployment, Service)
-  → Envoy Gateway routes external traffic via HTTPRoute
-  → Backstage shows the service in Catalog with live Kubernetes resource status
+  → PipelineRun 触发:
+      1. clone           — 克隆仓库至对应 commit
+      2. pytest          — 在 python:3.12-slim 中运行测试
+      3. BuildKit build  — 无 root 的 OCI 构建，无需 Docker 守护进程
+      4. push GHCR       — ghcr.io/re1lya/fastapi-demo:<commit-sha>
+      5. update GitOps   — 编辑 charts/fastapi-demo-appservice/values.yaml
+                           提交并推送，标记 [skip ci]
+  → Argo CD 检测漂移，同步 chart（30 秒轮询）
+  → Crossplane 将 AppService 声明调和成 Helm Release
+  → provider-helm 部署运行时 chart（Deployment、Service）
+  → Envoy Gateway 通过 HTTPRoute 路由外部流量
+  → Backstage 在目录中展示服务，附带实时 Kubernetes 资源状态
 ```
 
-### Proven PipelineRun
+### 已验证的 PipelineRun
 
-The pipeline has completed successfully end-to-end:
+Pipeline 已成功完成端到端运行：
 
 ```
 PipelineRun: fastapi-demo-ci-krh4q
@@ -118,20 +118,20 @@ Image:        ghcr.io/re1lya/fastapi-demo:1ddefb7862e41ac2646e08c9bd8190248abfd3
 Status:       Succeeded
 ```
 
-Each step is observable:
-- **Tekton Dashboard** — pipeline logs, task durations, commit SHA
-- **Argo CD UI** — sync status, diff view, application health
-- **Backstage** — Catalog entry with Kubernetes resource panel
+每个步骤均可观测：
+- **Tekton Dashboard** — Pipeline 日志、任务耗时、commit SHA
+- **Argo CD UI** — 同步状态、差异对比、应用健康状态
+- **Backstage** — 目录条目及 Kubernetes 资源面板
 
 ---
 
-## 4. Developer Experience
+## 4. 开发者体验
 
-### Self-Service Onboarding via Backstage
+### 通过 Backstage 实现自助式服务接入
 
-A developer wants to deploy a new FastAPI service. They open the Backstage **Create** page and fill in the **"Register Existing FastAPI Service"** template:
+当开发者需要部署一个新的 FastAPI 服务时，打开 Backstage 的 **Create** 页面，填写 **"Register Existing FastAPI Service"** 模板：
 
-| Parameter | Example |
+| 参数 | 示例 |
 |-----------|---------|
 | Service Name | `fastapi-demo` |
 | Owner | `platform-team` |
@@ -142,134 +142,134 @@ A developer wants to deploy a new FastAPI service. They open the Backstage **Cre
 | App Port | `8000` |
 | Replicas | `1` |
 
-### What Happens Next — Fully Automated
+### 后续流程 — 全自动化
 
-The template **opens a GitHub Pull Request** that adds everything needed to onboard the service:
+模板会**自动创建一个 GitHub Pull Request**，包含接入服务所需的全部内容：
 
 ```
-gitops/appservices/<serviceName>/        ← AppService Helm chart (deployment config)
+gitops/appservices/<serviceName>/        ← AppService Helm Chart（部署配置）
 gitops/argocd/<serviceName>-appservice.yaml  ← Argo CD Application
 gitops/tekton/<serviceName>-ci.yaml         ← Tekton EventListener + Pipeline
-catalog/services/<serviceName>/catalog-info.yaml  ← Backstage Component registration
+catalog/services/<serviceName>/catalog-info.yaml  ← Backstage 组件注册
 ```
 
-### After the PR is Merged
+### PR 合并之后
 
-The platform's **app-of-apps** Argo CD applications (one for `argocd`, one for `tekton`) pick up the new files automatically:
+平台的 **app-of-apps** Argo CD 应用（一个管理 `argocd`，一个管理 `tekton`）会自动拾取新文件：
 
 ```
-platform-appservices Argo CD app
-  → syncs gitops/argocd
-  → creates the service-specific Argo CD Application
-  → syncs the AppService Helm chart
-  → Crossplane provisions the AppService
-  → provider-helm deploys runtime resources into demo namespace
+platform-appservices Argo CD 应用
+  → 同步 gitops/argocd
+  → 创建服务专属的 Argo CD Application
+  → 同步 AppService Helm Chart
+  → Crossplane 创建 AppService
+  → provider-helm 将运行时资源部署到 demo 命名空间
 
-platform-ci Argo CD app
-  → syncs gitops/tekton
-  → creates the service-specific Tekton EventListener + Pipeline
-  → ready to receive GitHub webhooks for the new service
+platform-ci Argo CD 应用
+  → 同步 gitops/tekton
+  → 创建服务专属的 Tekton EventListener + Pipeline
+  → 准备好接收新服务的 GitHub Webhook
 ```
 
-### What the Developer Does NOT Do
+### 开发者无需做的事
 
-- ❌ No `docker build` / `docker push`
-- ❌ No `kubectl apply`
-- ❌ No `helm install`
-- ❌ No CI config writing (Pipeline YAML is generated)
-- ❌ No GitOps config writing (Helm chart + Application YAML are generated)
-- ❌ No secret management for GHCR or Git auth
+- ❌ 无需 `docker build` / `docker push`
+- ❌ 无需 `kubectl apply`
+- ❌ 无需 `helm install`
+- ❌ 无需手写 CI 配置（Pipeline YAML 自动生成）
+- ❌ 无需手写 GitOps 配置（Helm Chart + Application YAML 自动生成）
+- ❌ 无需管理 GHCR 或 Git 的凭据
 
-The developer only: **fills a form in Backstage → reviews the PR → merges it**. Everything else is automated.
+开发者只需：**在 Backstage 中填写表单 → 审核 PR → 合并**。其余全部自动化。
 
 ---
 
-## 5. Before vs After
+## 5. 对比 — 之前 vs 之后
 
-| Step | Traditional | Platform (This POC) |
+| 步骤 | 传统方式 | 平台方式（本 POC） |
 |------|-------------|---------------------|
-| **Scaffold CI** | Write GitHub Actions / Jenkinsfile manually | Backstage template generates Tekton Pipeline |
-| **Docker build** | `docker build && docker push` from local | Tekton runs rootless BuildKit in-cluster, pushes to GHCR |
-| **Update manifest** | Edit YAML by hand, `kubectl apply` | CI commits to GitOps repo; Argo CD detects and syncs |
-| **Deploy** | Manual `helm upgrade` or `kubectl set image` | Argo CD auto-sync → Crossplane reconciles Helm Release |
-| **Expose** | Manual Ingress/Service YAML | Envoy Gateway HTTPRoute, auto-generated via Crossplane |
-| **Register in catalog** | Manually write `catalog-info.yaml` | Template generates it in the PR |
-| **Observability** | `kubectl logs`, `kubectl get pods` | Argo CD UI (sync/health), Backstage Kubernetes plugin, Tekton Dashboard |
+| **脚手架 CI** | 手动编写 GitHub Actions / Jenkinsfile | Backstage 模板生成 Tekton Pipeline |
+| **Docker 构建** | 本地 `docker build && docker push` | Tekton 在集群内运行无 root BuildKit，推送至 GHCR |
+| **更新清单** | 手动编辑 YAML，`kubectl apply` | CI 提交至 GitOps 仓库；Argo CD 检测并同步 |
+| **部署** | 手动 `helm upgrade` 或 `kubectl set image` | Argo CD 自动同步 → Crossplane 调和 Helm Release |
+| **暴露服务** | 手动配置 Ingress/Service YAML | Envoy Gateway HTTPRoute，通过 Crossplane 自动生成 |
+| **注册到目录** | 手动编写 `catalog-info.yaml` | 模板在 PR 中自动生成 |
+| **可观测性** | `kubectl logs`、`kubectl get pods` | Argo CD UI（同步/健康状态）、Backstage Kubernetes 插件、Tekton Dashboard |
 
-### Key Automation Points
+### 关键自动化节点
 
-1. **Build** — Push triggers Tekton; rootless BuildKit builds and pushes the image. No local Docker needed.
-2. **GitOps Sync** — CI commits the new image tag to the GitOps values file. Argo CD picks it up within 30 seconds.
-3. **Provisioning** — Crossplane turns a high-level `AppService` claim into a concrete Helm Release. No raw Helm commands.
-4. **Rolling Update** — Kubernetes performs a standard rolling update when Crossplane changes the Deployment image tag.
+1. **构建** — 推送触发 Tekton；无 root BuildKit 构建并推送镜像，无需本地 Docker。
+2. **GitOps 同步** — CI 将新镜像 tag 提交到 GitOps values 文件。Argo CD 在 30 秒内拾取变更。
+3. **资源编排** — Crossplane 将高层 `AppService` 声明转化为具体 Helm Release，无需原始 Helm 命令。
+4. **滚动更新** — Crossplane 更新 Deployment 镜像 tag 后，Kubernetes 执行标准滚动更新。
 
 ---
 
-## 6. Verification
+## 6. 验证
 
-### FastAPI Demo — Deployment Success Page
+### FastAPI Demo — 部署成功页面
 
-Open the FastAPI service root path to see the deployment confirmation page:
+访问 FastAPI 服务根路径，查看部署确认页面：
 
 ```
 http://localhost:30080/
 ```
 
-The page shows:
-- **HTTP 200 OK** badge (green)
-- Service name, environment, version
-- Full pipeline visualization: GitHub → Tekton CI → GHCR → Argo CD → Kubernetes → Gateway
+页面展示：
+- **HTTP 200 OK** 徽章（绿色）
+- 服务名称、运行环境、版本号
+- 完整 Pipeline 可视化：GitHub → Tekton CI → GHCR → Argo CD → Kubernetes → Gateway
 
-This page is self-contained (no external CSS/JS) and serves as a live proof that the service is deployed and publicly reachable.
+该页面完全自包含（无外部 CSS/JS），作为服务已部署并可公开访问的实时证明。
 
-### Check End-to-End State
+### 检查端到端状态
 
 ```bash
-# Argo CD application status
+# Argo CD 应用状态
 kubectl get application fastapi-demo-appservice -n argocd
 
-# Crossplane claim status
+# Crossplane 声明状态
 kubectl get appservice fastapi-demo -n default
 
-# Helm Release status
+# Helm Release 状态
 kubectl get releases.helm.m.crossplane.io -n default
 
-# Runtime resources
+# 运行时资源
 kubectl get deploy,pod,svc -n demo -l backstage.io/kubernetes-id=fastapi-demo
 ```
 
-Expected output:
+预期输出：
 
 ```
-Argo CD:    Synced / Healthy
+Argo CD:    已同步 / 健康
 AppService: SYNCED=True  READY=True
 Release:    SYNCED=True  READY=True  STATE=deployed
 Deployment: 1/1
-Pod:        Running
+Pod:        运行中
 ```
 
 ### Backstage
 
 ```bash
 kubectl port-forward svc/backstage -n backstage 7007:7007
-# Open http://localhost:7007
+# 访问 http://localhost:7007
 ```
 
-The FastAPI Demo component shows:
-- Catalog entry with metadata
-- Kubernetes plugin panel listing Deployments, Pods, Services
-- Live status from the cluster
+FastAPI Demo 组件展示：
+- 包含元数据的目录条目
+- Kubernetes 插件面板，列出 Deployment、Pod、Service
+- 来自集群的实时状态
 
 ### Argo CD
 
 ```bash
 kubectl port-forward svc/argocd-server -n argocd 8080:80
-# Open http://localhost:8080
+# 访问 http://localhost:8080
 ```
 
-The `fastapi-demo-appservice` Application shows the sync graph and resource tree.
+`fastapi-demo-appservice` 应用展示同步图谱和资源树。
 
-### Health Check
+### 健康检查
 
 ```bash
 curl http://localhost:30080/health
@@ -278,15 +278,15 @@ curl http://localhost:30080/health
 
 ---
 
-## Appendix: Key Repository Paths
+## 附录：关键仓库路径
 
-| Path | Description |
+| 路径 | 说明 |
 |------|-------------|
-| `apps/fastapi-demo/` | FastAPI service source + Dockerfile |
-| `charts/fastapi-demo-appservice/` | Crossplane AppService Helm chart (deployment config) |
-| `gitops/argocd/` | Argo CD Application manifests (per service) |
-| `gitops/tekton/` | Tekton Pipeline + EventListener manifests (per service) |
-| `manifests/crossplane/` | Crossplane Provider + Composition definitions |
-| `manifests/tekton/` | Shared Tekton Task definitions (clone, test, build-push, update-gitops) |
-| `catalog/services/` | Backstage catalog-info.yaml per service |
-| `apps/backstage-custom/` | Customized Backstage image with Software Templates |
+| `apps/fastapi-demo/` | FastAPI 服务源码 + Dockerfile |
+| `charts/fastapi-demo-appservice/` | Crossplane AppService Helm Chart（部署配置） |
+| `gitops/argocd/` | Argo CD Application 清单（按服务） |
+| `gitops/tekton/` | Tekton Pipeline + EventListener 清单（按服务） |
+| `manifests/crossplane/` | Crossplane Provider + Composition 定义 |
+| `manifests/tekton/` | 共享 Tekton Task 定义（clone、test、build-push、update-gitops） |
+| `catalog/services/` | 每个服务的 Backstage catalog-info.yaml |
+| `apps/backstage-custom/` | 包含软件模板的自定义 Backstage 镜像 |

@@ -1949,6 +1949,123 @@ http://localhost:30080/health
 
 Because Backstage Catalog discovery reads from GitHub, this link appears in Backstage after the catalog file is pushed and the GitHub discovery provider refreshes.
 
+## 2026-07-10 Success Page, Test Feedback, and Full Chain Verification
+
+Implemented and verified the FastAPI service success page and explicit test feedback.
+
+Changes:
+
+- Added a dedicated success-page test:
+
+```text
+D:/Markdown/crossplane-backstage-poc/apps/fastapi-demo/tests/test_success_page.py
+```
+
+- Added pytest terminal summary hook:
+
+```text
+D:/Markdown/crossplane-backstage-poc/apps/fastapi-demo/tests/conftest.py
+```
+
+Local `pytest -q` output now includes:
+
+```text
+================================== TEST PASS ==================================
+2 passed
+```
+
+- Updated Tekton shared test Task to print `TEST PASS` after pytest:
+
+```text
+D:/Markdown/crossplane-backstage-poc/gitops/tekton/shared-tasks.yaml
+```
+
+- Updated the reference Tekton manifest consistently:
+
+```text
+D:/Markdown/crossplane-backstage-poc/manifests/tekton/fastapi-demo-ci.yaml
+```
+
+- Updated Gateway route for `fastapi-demo-2` from `/health` only to `/`, so both `/` and `/health` are reachable:
+
+```text
+D:/Markdown/crossplane-backstage-poc/manifests/gateway/fastapi-demo-2-gateway.yaml
+```
+
+- Updated the Backstage Catalog `Open Service` link for `fastapi-demo-2` to:
+
+```text
+http://localhost:30080/
+```
+
+- Removed tracked Python `__pycache__` files and added ignore rules for Python bytecode.
+
+Verified chain:
+
+- Commit `711e5ba test: verify FastAPI success page and CI feedback` was pushed.
+- GitHub webhook triggered PipelineRun:
+
+```text
+fastapi-demo-2-ci-hwlbk
+```
+
+- PipelineRun result:
+
+```text
+SUCCEEDED=True
+TaskRuns:
+  clone: Succeeded
+  test: Succeeded
+  build-push: Succeeded
+  update-gitops: Succeeded
+```
+
+- Test Task logs include:
+
+```text
+TEST PASS
+2 passed
+```
+
+- Tekton pushed GitOps update:
+
+```text
+3dedd5c chore: update fastapi-demo image tag [skip ci]
+```
+
+- Argo CD synced the new image tag:
+
+```text
+ghcr.io/re1lya/fastapi-demo-2:711e5ba6245ea893b62b74f04602c683d4061d1f
+```
+
+- Kubernetes rollout completed:
+
+```text
+deployment/fastapi-demo-2 successfully rolled out
+```
+
+- Gateway verification:
+
+```text
+curl http://localhost:30080/
+HTTP 200
+content-type: text/html; charset=utf-8
+Contains: Platform POC Service is Running
+
+curl http://localhost:30080/health
+HTTP 200
+{"status":"ok"}
+```
+
+- Crossplane provider-helm briefly reported `mkdir /tmp/charts: file exists`, leaving the Release condition stale even though Helm was deployed.
+- Restarted provider-helm Pod; final state:
+
+```text
+Release fastapi-demo-2: SYNCED=True READY=True STATE=deployed REVISION=3
+AppService fastapi-demo-2: SYNCED=True READY=True
+```
+
 ## 2026-07-09 Tekton Shared Task GitOps Fix
 
 User reported `PipelineRun fastapi-demo-2-ci-2clkl` failed with:
