@@ -1,0 +1,6 @@
+apiVersion: v2
+name: platform-demo-appservices
+description: Demo AppService claims managed by Crossplane.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

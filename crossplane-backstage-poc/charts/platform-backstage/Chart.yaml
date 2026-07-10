@@ -1,0 +1,6 @@
+apiVersion: v2
+name: platform-backstage
+description: Backstage Kubernetes read-only RBAC for the POC.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

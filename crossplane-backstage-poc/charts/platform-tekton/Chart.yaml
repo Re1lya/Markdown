@@ -1,0 +1,6 @@
+apiVersion: v2
+name: platform-tekton
+description: Tekton shared tasks, RBAC, and demo CI resources for the POC.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

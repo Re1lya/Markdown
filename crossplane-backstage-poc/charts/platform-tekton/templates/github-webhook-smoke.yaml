@@ -1,0 +1,232 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ci
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-webhook-secret
+  namespace: ci
+type: Opaque
+stringData:
+  secretToken: platform-poc-webhook-secret
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tekton-triggers-github
+  namespace: ci
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tekton-triggers-github
+  namespace: ci
+rules:
+  - apiGroups:
+      - tekton.dev
+    resources:
+      - pipelineruns
+      - taskruns
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - triggers.tekton.dev
+    resources:
+      - eventlisteners
+      - triggerbindings
+      - triggertemplates
+      - triggers
+      - interceptors
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tekton-triggers-github
+  namespace: ci
+subjects:
+  - kind: ServiceAccount
+    name: tekton-triggers-github
+    namespace: ci
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tekton-triggers-github
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tekton-triggers-github-ci
+rules:
+  - apiGroups:
+      - triggers.tekton.dev
+    resources:
+      - clusterinterceptors
+      - clustertriggerbindings
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tekton-triggers-github-ci
+subjects:
+  - kind: ServiceAccount
+    name: tekton-triggers-github
+    namespace: ci
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tekton-triggers-github-ci
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: github-push-smoke
+  namespace: ci
+spec:
+  params:
+    - name: repo_url
+      type: string
+    - name: git_ref
+      type: string
+    - name: commit_sha
+      type: string
+    - name: pusher
+      type: string
+  steps:
+    - name: print-event
+      image: alpine:3.20
+      script: |
+        #!/bin/sh
+        set -eu
+        echo "GitHub webhook reached Tekton."
+        echo "repo_url=$(params.repo_url)"
+        echo "git_ref=$(params.git_ref)"
+        echo "commit_sha=$(params.commit_sha)"
+        echo "pusher=$(params.pusher)"
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: github-push-smoke
+  namespace: ci
+spec:
+  params:
+    - name: repo_url
+      type: string
+    - name: git_ref
+      type: string
+    - name: commit_sha
+      type: string
+    - name: pusher
+      type: string
+  tasks:
+    - name: smoke
+      taskRef:
+        name: github-push-smoke
+      params:
+        - name: repo_url
+          value: $(params.repo_url)
+        - name: git_ref
+          value: $(params.git_ref)
+        - name: commit_sha
+          value: $(params.commit_sha)
+        - name: pusher
+          value: $(params.pusher)
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: github-push-binding
+  namespace: ci
+spec:
+  params:
+    - name: repo_url
+      value: $(body.repository.clone_url)
+    - name: git_ref
+      value: $(body.ref)
+    - name: commit_sha
+      value: $(body.after)
+    - name: pusher
+      value: $(body.pusher.name)
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: github-push-template
+  namespace: ci
+spec:
+  params:
+    - name: repo_url
+    - name: git_ref
+    - name: commit_sha
+    - name: pusher
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: github-push-smoke-
+        namespace: ci
+      spec:
+        pipelineRef:
+          name: github-push-smoke
+        params:
+          - name: repo_url
+            value: $(tt.params.repo_url)
+          - name: git_ref
+            value: $(tt.params.git_ref)
+          - name: commit_sha
+            value: $(tt.params.commit_sha)
+          - name: pusher
+            value: $(tt.params.pusher)
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: github-listener
+  namespace: ci
+spec:
+  serviceAccountName: tekton-triggers-github
+  triggers:
+    - name: github-push
+      interceptors:
+        - ref:
+            name: github
+            kind: ClusterInterceptor
+          params:
+            - name: secretRef
+              value:
+                secretName: github-webhook-secret
+                secretKey: secretToken
+            - name: eventTypes
+              value:
+                - push
+      bindings:
+        - ref: github-push-binding
+      template:
+        ref: github-push-template

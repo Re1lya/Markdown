@@ -1,0 +1,9 @@
+apiVersion: platform.example.com/v1alpha1
+kind: AppService
+metadata:
+  name: helloworld
+  namespace: default
+spec:
+  namespace: demo
+  chartVersion: 0.1.0
+  message: hello from Crossplane-managed Helm release

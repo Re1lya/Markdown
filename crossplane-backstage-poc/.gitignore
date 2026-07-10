@@ -1,3 +1,6 @@
 .runtime/
+scripts/create-secrets.sh
+*.kubeconfig
+kubeconfig*
 __pycache__/
 *.py[cod]

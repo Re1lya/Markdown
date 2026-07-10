@@ -1,0 +1,61 @@
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: appservices.platform.example.com
+spec:
+  group: platform.example.com
+  scope: Namespaced
+  names:
+    kind: AppService
+    plural: appservices
+  defaultCompositionRef:
+    name: appservice-helm-release
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                namespace:
+                  type: string
+                  description: Kubernetes namespace where the Helm release installs the app.
+                  default: demo
+                chartVersion:
+                  type: string
+                  description: Helm chart version.
+                  default: 0.1.0
+                chartName:
+                  type: string
+                  description: Helm chart name in the platform chart repository.
+                  default: helloworld
+                port:
+                  type: integer
+                  description: Container port exposed by the application chart.
+                  default: 8000
+                replicas:
+                  type: integer
+                  description: Desired replica count for charts that support replicaCount.
+                  default: 1
+                message:
+                  type: string
+                  description: Text returned by the HelloWorld service.
+                  default: hello from Crossplane-managed Helm release
+                image:
+                  type: object
+                  description: Optional container image override for charts that support it.
+                  properties:
+                    repository:
+                      type: string
+                      default: ""
+                    tag:
+                      type: string
+                      default: ""
+              required:
+                - namespace
+                - chartVersion
+                - message

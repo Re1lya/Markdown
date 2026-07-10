@@ -1,0 +1,200 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fastapi-demo-2-ci
+  namespace: ci
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fastapi-demo-2-ci-triggers
+  namespace: ci
+subjects:
+  - kind: ServiceAccount
+    name: fastapi-demo-2-ci
+    namespace: ci
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tekton-triggers-github
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fastapi-demo-2-ci-triggers
+subjects:
+  - kind: ServiceAccount
+    name: fastapi-demo-2-ci
+    namespace: ci
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tekton-triggers-github-ci
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: fastapi-demo-2-ci
+  namespace: ci
+spec:
+  params:
+    - name: repo_url
+      type: string
+      default: https://github.com/Re1lya/Markdown.git
+    - name: git_ref
+      type: string
+    - name: commit_sha
+      type: string
+    - name: image_repository
+      type: string
+      default: ghcr.io/re1lya/fastapi-demo-2
+    - name: context_dir
+      type: string
+      default: crossplane-backstage-poc/apps/fastapi-demo
+    - name: gitops_values_file
+      type: string
+      default: crossplane-backstage-poc/gitops/appservices/fastapi-demo-2/values.yaml
+    - name: gitops_repo_url
+      type: string
+      default: https://github.com/Re1lya/Markdown.git
+    - name: gitops_branch
+      type: string
+      default: main
+  workspaces:
+    - name: source
+    - name: dockerconfig
+  tasks:
+    - name: clone
+      taskRef:
+        name: clone-repo
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: repo_url
+          value: $(params.repo_url)
+        - name: git_ref
+          value: $(params.git_ref)
+    - name: test
+      runAfter:
+        - clone
+      taskRef:
+        name: test-fastapi-demo
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: context_dir
+          value: $(params.context_dir)
+    - name: build-push
+      runAfter:
+        - test
+      taskRef:
+        name: build-push-fastapi-demo
+      workspaces:
+        - name: source
+          workspace: source
+        - name: dockerconfig
+          workspace: dockerconfig
+      params:
+        - name: context_dir
+          value: $(params.context_dir)
+        - name: image
+          value: $(params.image_repository):$(params.commit_sha)
+    - name: update-gitops
+      runAfter:
+        - build-push
+      taskRef:
+        name: update-fastapi-demo-gitops
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: commit_sha
+          value: $(params.commit_sha)
+        - name: gitops_values_file
+          value: $(params.gitops_values_file)
+        - name: gitops_repo_url
+          value: $(params.gitops_repo_url)
+        - name: gitops_branch
+          value: $(params.gitops_branch)
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: fastapi-demo-2-ci-binding
+  namespace: ci
+spec:
+  params:
+    - name: git_ref
+      value: $(body.after)
+    - name: commit_sha
+      value: $(body.after)
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: fastapi-demo-2-ci-template
+  namespace: ci
+spec:
+  params:
+    - name: git_ref
+    - name: commit_sha
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: fastapi-demo-2-ci-
+        namespace: ci
+      spec:
+        pipelineRef:
+          name: fastapi-demo-2-ci
+        params:
+          - name: git_ref
+            value: $(tt.params.git_ref)
+          - name: commit_sha
+            value: $(tt.params.commit_sha)
+        workspaces:
+          - name: source
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 1Gi
+          - name: dockerconfig
+            secret:
+              secretName: ghcr-auth
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: fastapi-demo-2-ci-listener
+  namespace: ci
+spec:
+  serviceAccountName: fastapi-demo-2-ci
+  triggers:
+    - name: github-push
+      interceptors:
+        - ref:
+            name: github
+            kind: ClusterInterceptor
+          params:
+            - name: secretRef
+              value:
+                secretName: github-webhook-secret
+                secretKey: secretToken
+            - name: eventTypes
+              value:
+                - push
+        - ref:
+            name: cel
+            kind: ClusterInterceptor
+          params:
+            - name: filter
+              value: "!body.head_commit.message.contains('[skip ci]')"
+      bindings:
+        - ref: fastapi-demo-2-ci-binding
+      template:
+        ref: fastapi-demo-2-ci-template
