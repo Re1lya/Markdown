@@ -2066,6 +2066,32 @@ Release fastapi-demo-2: SYNCED=True READY=True STATE=deployed REVISION=3
 AppService fastapi-demo-2: SYNCED=True READY=True
 ```
 
+## 2026-07-10 POC Guide Screenshots Added
+
+Inserted user-provided screenshots into:
+
+```text
+D:/Markdown/crossplane-backstage-poc/POC_GUIDE.md
+```
+
+Added image assets:
+
+```text
+D:/Markdown/crossplane-backstage-poc/docs/images/backstage-create-fastapi-template.png
+D:/Markdown/crossplane-backstage-poc/docs/images/backstage-platform-catalog.png
+D:/Markdown/crossplane-backstage-poc/docs/images/backstage-fastapi-kubernetes-status.png
+D:/Markdown/crossplane-backstage-poc/docs/images/fastapi-success-page.png
+```
+
+The screenshots are used to show:
+
+- Backstage `Register Existing FastAPI Service` template.
+- Backstage Catalog component list.
+- Backstage Kubernetes runtime status for `fastapi-demo-2`.
+- The FastAPI POC success page exposed through Gateway.
+
+Also added manual command examples to `POC_GUIDE.md` for triggering CI and reading Tekton `TEST PASS` output.
+
 ## 2026-07-09 Tekton Shared Task GitOps Fix
 
 User reported `PipelineRun fastapi-demo-2-ci-2clkl` failed with:

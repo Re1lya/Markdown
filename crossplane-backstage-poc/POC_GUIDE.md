@@ -131,6 +131,8 @@ Status:       Succeeded
 
 当开发者需要部署一个新的 FastAPI 服务时，打开 Backstage 的 **Create** 页面，填写 **"Register Existing FastAPI Service"** 模板：
 
+![Backstage FastAPI 服务接入模板](docs/images/backstage-create-fastapi-template.png)
+
 | 参数 | 示例 |
 |-----------|---------|
 | Service Name | `fastapi-demo` |
@@ -182,6 +184,18 @@ platform-ci Argo CD 应用
 
 开发者只需：**在 Backstage 中填写表单 → 审核 PR → 合并**。其余全部自动化。
 
+### Backstage 服务目录
+
+服务接入并同步完成后，Backstage Catalog 会展示当前平台管理的组件。
+
+![Backstage Platform POC Catalog](docs/images/backstage-platform-catalog.png)
+
+### Backstage Kubernetes 运行状态
+
+服务详情页中的 Kubernetes 面板会按 Catalog Entity 的 Kubernetes annotation 关联集群内资源，展示 Deployment、Service、Pod 数量和错误状态。
+
+![Backstage fastapi-demo-2 Kubernetes 状态](docs/images/backstage-fastapi-kubernetes-status.png)
+
 ---
 
 ## 5. 对比 — 之前 vs 之后
@@ -202,3 +216,80 @@ platform-ci Argo CD 应用
 2. **GitOps 同步** — CI 将新镜像 tag 提交到 GitOps values 文件。Argo CD 在 30 秒内拾取变更。
 3. **资源编排** — Crossplane 将高层 `AppService` 声明转化为具体 Helm Release，无需原始 Helm 命令。
 4. **滚动更新** — Crossplane 更新 Deployment 镜像 tag 后，Kubernetes 执行标准滚动更新。
+
+---
+
+## 6. 服务访问验证
+
+`fastapi-demo-2` 已通过 Envoy Gateway 暴露到本地端口：
+
+```text
+http://localhost:30080/
+```
+
+根路径返回服务部署成功页面，用于展示服务已经完成 CI/CD 并在 Kubernetes 中运行。
+
+![FastAPI POC 成功页面](docs/images/fastapi-success-page.png)
+
+健康检查接口：
+
+```text
+http://localhost:30080/health
+```
+
+返回：
+
+```json
+{"status":"ok"}
+```
+
+## 7. 手动提交与观察测试反馈
+
+如果需要手动制造一次提交来触发 CI/CD，可以修改 FastAPI 示例服务中的任意可提交内容，例如：
+
+```powershell
+cd D:\Markdown
+
+# 示例：追加一行注释，用于触发一次提交
+Add-Content .\crossplane-backstage-poc\apps\fastapi-demo\app\main.py "# manual ci test"
+
+git add .\crossplane-backstage-poc\apps\fastapi-demo\app\main.py
+git commit -m "test: trigger fastapi demo ci"
+git push origin main
+```
+
+推送后查看 PipelineRun：
+
+```powershell
+kubectl get pipelinerun -n ci --sort-by=.metadata.creationTimestamp
+```
+
+找到最新的 `fastapi-demo-2-ci-xxxxx` 后查看 TaskRun：
+
+```powershell
+$RunName = "fastapi-demo-2-ci-xxxxx"
+kubectl get taskrun -n ci -l tekton.dev/pipelineRun=$RunName
+```
+
+查看 test task 日志，能看到 `TEST PASS`：
+
+```powershell
+kubectl logs -n ci pod/$RunName-test-pod --all-containers=true
+```
+
+预期输出包含：
+
+```text
+================================== TEST PASS ==================================
+2 passed
+TEST PASS
+```
+
+如果要继续观察部署是否完成：
+
+```powershell
+kubectl get applications -n argocd
+kubectl get appservice fastapi-demo-2 -n default
+kubectl rollout status deployment/fastapi-demo-2 -n demo --timeout=180s
+curl.exe --noproxy "*" http://localhost:30080/
+```
