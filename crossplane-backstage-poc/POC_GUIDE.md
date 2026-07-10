@@ -304,6 +304,10 @@ Result
 [PASS] CI/CD completed successfully.
 ```
 
+命令行输出示例：
+
+![CI/CD Checks 命令行反馈](docs/images/ci-checks-command-output.png)
+
 也可以手动查看 PipelineRun：
 
 ```powershell

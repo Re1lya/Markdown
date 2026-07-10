@@ -2081,6 +2081,7 @@ D:/Markdown/crossplane-backstage-poc/docs/images/backstage-create-fastapi-templa
 D:/Markdown/crossplane-backstage-poc/docs/images/backstage-platform-catalog.png
 D:/Markdown/crossplane-backstage-poc/docs/images/backstage-fastapi-kubernetes-status.png
 D:/Markdown/crossplane-backstage-poc/docs/images/fastapi-success-page.png
+D:/Markdown/crossplane-backstage-poc/docs/images/ci-checks-command-output.png
 ```
 
 The screenshots are used to show:
@@ -2089,6 +2090,7 @@ The screenshots are used to show:
 - Backstage Catalog component list.
 - Backstage Kubernetes runtime status for `fastapi-demo-2`.
 - The FastAPI POC success page exposed through Gateway.
+- The PowerShell CI/CD Checks-style command output.
 
 Also added manual command examples to `POC_GUIDE.md` for triggering CI and reading Tekton `TEST PASS` output.
 
