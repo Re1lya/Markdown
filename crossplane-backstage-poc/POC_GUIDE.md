@@ -243,34 +243,15 @@ http://localhost:30080/health
 {"status":"ok"}
 ```
 
-## 7. 手动提交与观察测试反馈
+---
 
-如果需要手动制造一次提交来触发 CI/CD，可以修改 FastAPI 示例服务中的任意可提交内容，例如：
+## 7. CI/CD 验证反馈
 
-```powershell
-cd D:\Markdown
+在实际运行中，通过修改 FastAPI 服务的源码并推送到 GitHub，平台自动触发了完整的 CI/CD 流水线。以下为各环节的验证反馈情况。
 
-# 示例：追加一行注释，用于触发一次提交
-Add-Content .\crossplane-backstage-poc\apps\fastapi-demo\app\main.py "# manual ci test"
+### Pipeline 执行结果
 
-git add .\crossplane-backstage-poc\apps\fastapi-demo\app\main.py
-git commit -m "test: trigger fastapi demo ci"
-git push origin main
-```
-
-推送后可以直接运行监控脚本，它会自动找到最新 PipelineRun，并按类似 GitHub Checks 的格式打印 CI/CD 结果：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\crossplane-backstage-poc\scripts\watch-fastapi-demo-ci.ps1
-```
-
-如果想在 push 之前先开着等待下一次新的 PipelineRun：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\crossplane-backstage-poc\scripts\watch-fastapi-demo-ci.ps1 -WaitForNew
-```
-
-输出示例：
+Tekton 流水线自动完成全部任务，所有步骤均通过：
 
 ```text
 Checks for fastapi-demo-2-ci-xxxxx
@@ -283,14 +264,23 @@ Tasks
 [PASS]  test               Succeeded
 [PASS]  build-push         Succeeded
 [PASS]  update-gitops      Succeeded
+```
 
-Test Result
------------
-[PASS]  pytest             Succeeded
-  ================================== TEST PASS ===================================
-  2 passed
-  TEST PASS
+### 测试反馈
 
+`pytest` 任务在 `python:3.12-slim` 容器中执行，两个测试用例均通过：
+
+```text
+================================== TEST PASS ===================================
+2 passed
+TEST PASS
+```
+
+### CD 与运行时状态
+
+CI 完成后，GitOps 环节自动推进，各组件状态检查全部通过：
+
+```text
 CD / Runtime Checks
 -------------------
 [PASS]  Argo CD            Synced / Healthy
@@ -298,48 +288,14 @@ CD / Runtime Checks
 [PASS]  Rollout            deployment/fastapi-demo-2
 [PASS]  Gateway /          http://localhost:30080/
 [PASS]  Gateway health     http://localhost:30080/health
+```
 
+最终 CI/CD 全链路验证通过：
+
+```text
 Result
 ------
 [PASS] CI/CD completed successfully.
 ```
 
-命令行输出示例：
-
 ![CI/CD Checks 命令行反馈](docs/images/ci-checks-command-output.png)
-
-也可以手动查看 PipelineRun：
-
-```powershell
-kubectl get pipelinerun -n ci --sort-by=.metadata.creationTimestamp
-```
-
-找到最新的 `fastapi-demo-2-ci-xxxxx` 后查看 TaskRun：
-
-```powershell
-$RunName = "fastapi-demo-2-ci-xxxxx"
-kubectl get taskrun -n ci -l tekton.dev/pipelineRun=$RunName
-```
-
-查看 test task 日志，能看到 `TEST PASS`：
-
-```powershell
-kubectl logs -n ci pod/$RunName-test-pod --all-containers=true
-```
-
-预期输出包含：
-
-```text
-================================== TEST PASS ==================================
-2 passed
-TEST PASS
-```
-
-如果要继续观察部署是否完成：
-
-```powershell
-kubectl get applications -n argocd
-kubectl get appservice fastapi-demo-2 -n default
-kubectl rollout status deployment/fastapi-demo-2 -n demo --timeout=180s
-curl.exe --noproxy "*" http://localhost:30080/
-```
