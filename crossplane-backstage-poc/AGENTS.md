@@ -2092,6 +2092,40 @@ The screenshots are used to show:
 
 Also added manual command examples to `POC_GUIDE.md` for triggering CI and reading Tekton `TEST PASS` output.
 
+## 2026-07-10 CI/CD Watch Script Added
+
+Added a PowerShell helper that prints a GitHub Checks-style command-line summary for the FastAPI CI/CD chain:
+
+```text
+D:/Markdown/crossplane-backstage-poc/scripts/watch-fastapi-demo-ci.ps1
+```
+
+Usage:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\crossplane-backstage-poc\scripts\watch-fastapi-demo-ci.ps1
+powershell -ExecutionPolicy Bypass -File .\crossplane-backstage-poc\scripts\watch-fastapi-demo-ci.ps1 -WaitForNew
+powershell -ExecutionPolicy Bypass -File .\crossplane-backstage-poc\scripts\watch-fastapi-demo-ci.ps1 -PipelineRun fastapi-demo-2-ci-xxxxx
+```
+
+Verified against:
+
+```text
+fastapi-demo-2-ci-2cpnj
+```
+
+Output includes:
+
+- PipelineRun pass/fail.
+- TaskRun pass/fail for `clone`, `test`, `build-push`, and `update-gitops`.
+- Test log summary with `TEST PASS` and `2 passed`.
+- CD/runtime checks:
+  - Argo CD `Synced / Healthy`
+  - AppService `Synced=True, Ready=True`
+  - Kubernetes rollout
+  - Gateway `/`
+  - Gateway `/health`
+
 ## 2026-07-09 Tekton Shared Task GitOps Fix
 
 User reported `PipelineRun fastapi-demo-2-ci-2clkl` failed with:

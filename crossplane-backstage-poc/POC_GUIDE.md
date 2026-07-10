@@ -258,7 +258,53 @@ git commit -m "test: trigger fastapi demo ci"
 git push origin main
 ```
 
-推送后查看 PipelineRun：
+推送后可以直接运行监控脚本，它会自动找到最新 PipelineRun，并按类似 GitHub Checks 的格式打印 CI/CD 结果：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\crossplane-backstage-poc\scripts\watch-fastapi-demo-ci.ps1
+```
+
+如果想在 push 之前先开着等待下一次新的 PipelineRun：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\crossplane-backstage-poc\scripts\watch-fastapi-demo-ci.ps1 -WaitForNew
+```
+
+输出示例：
+
+```text
+Checks for fastapi-demo-2-ci-xxxxx
+==================================
+[PASS]  Pipeline           Succeeded
+
+Tasks
+-----
+[PASS]  clone              Succeeded
+[PASS]  test               Succeeded
+[PASS]  build-push         Succeeded
+[PASS]  update-gitops      Succeeded
+
+Test Result
+-----------
+[PASS]  pytest             Succeeded
+  ================================== TEST PASS ===================================
+  2 passed
+  TEST PASS
+
+CD / Runtime Checks
+-------------------
+[PASS]  Argo CD            Synced / Healthy
+[PASS]  AppService         Synced=True, Ready=True
+[PASS]  Rollout            deployment/fastapi-demo-2
+[PASS]  Gateway /          http://localhost:30080/
+[PASS]  Gateway health     http://localhost:30080/health
+
+Result
+------
+[PASS] CI/CD completed successfully.
+```
+
+也可以手动查看 PipelineRun：
 
 ```powershell
 kubectl get pipelinerun -n ci --sort-by=.metadata.creationTimestamp
