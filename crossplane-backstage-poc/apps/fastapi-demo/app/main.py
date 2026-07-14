@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 
 app = FastAPI(title="fastapi-demo")
 
+# CI/CD smoke test marker for fastapi-demo-2.
 SUCCESS_PAGE = """<!doctype html>
 <html lang="en">
 <head>
