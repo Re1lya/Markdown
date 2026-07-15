@@ -11,7 +11,7 @@ metadata:
     - url: https://github.com/Re1lya/Markdown
       title: Source Repository
       icon: github
-    - url: http://localhost:30080/
+    - url: http://110.120.0.3:30080/
       title: Open Service
       icon: web
 spec:
